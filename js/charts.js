@@ -23,7 +23,12 @@ const ChartTip = (() => {
 
 function setupCanvas(canvas, h){
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.parentElement.clientWidth || 300;
+  // clientWidth includes the parent's padding — subtract it so the chart
+  // fits the CONTENT box and never spills past the card's right edge
+  const p = canvas.parentElement;
+  const cs = getComputedStyle(p);
+  const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  const w = Math.max(60, (p.clientWidth || 300) - pad);
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
   const ctx = canvas.getContext('2d');

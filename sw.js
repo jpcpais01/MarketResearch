@@ -1,4 +1,4 @@
-const CACHE = 'emerald-v2';
+const CACHE = 'emerald-v3';
 const SHELL = [
   './',
   './index.html',

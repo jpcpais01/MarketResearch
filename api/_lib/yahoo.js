@@ -29,6 +29,19 @@ export const ySym = t => t.replace('.', '-');
 const pct = v => (v == null || !isFinite(v)) ? null : v * 100;
 const num = v => (v == null || !isFinite(v)) ? null : v;
 
+/* Symbol search across ALL of Yahoo Finance (any listed equity/ETF). */
+export async function searchSymbols(q){
+  const r = await yahooFinance.search(q, { quotesCount: 8, newsCount: 0, enableFuzzyQuery: true });
+  return (r.quotes || [])
+    .filter(x => x.symbol && (x.quoteType === 'EQUITY' || x.quoteType === 'ETF'))
+    .map(x => ({
+      sym: x.symbol,
+      name: x.shortname || x.longname || x.symbol,
+      exch: x.exchDisp || x.exchange || '',
+      type: x.quoteType
+    }));
+}
+
 export async function fetchChart(sym, years){
   const period1 = new Date(Date.now() - years * 365.25 * 86400e3);
   const ch = await yahooFinance.chart(sym, { period1, interval: '1d' });

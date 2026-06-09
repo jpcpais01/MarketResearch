@@ -269,16 +269,12 @@ function buildVerdict(s, m){
 }
 
 // ---------- master computation ----------
-function computeAll(){
-  // sector median P/E for relative valuation
-  const peBySec = {};
-  for (const s of STOCKS){ if (s.pe){ (peBySec[s.sec] = peBySec[s.sec] || []).push(s.pe); } }
-  const sectorPE = {};
-  for (const k in peBySec){ const a = peBySec[k].sort((x, y) => x - y); sectorPE[k] = a[Math.floor(a.length / 2)]; }
+let SECTOR_PE = {};   // sector → median P/E, for relative valuation
 
+/* Score ONE stock (also used to load tickers outside the universe on demand). */
+function computeOne(s, sectorPEHint){
   const haveLive = typeof SERIES_MAP !== 'undefined' && SERIES_MAP;
-  const out = new Map();
-  for (const s of STOCKS){
+  {
     const r = mulberry32(hashStr(s.t + ':fund'));
     let series = haveLive ? SERIES_MAP.get(s.t) : null;
     if (!series){
@@ -313,7 +309,7 @@ function computeAll(){
     const graham = (eps > 0 && bvps > 0) ? Math.sqrt(22.5 * eps * bvps) : null;
     const fcfYield = (s.fcf != null && s.ps) ? s.fcf / s.ps : null;
 
-    const sv = scoreValue(s, dcf, sectorPE[s.sec]);
+    const sv = scoreValue(s, dcf, sectorPEHint);
     const sg = scoreGrowth(s);
     const sq = scoreQuality(s);
     const sh = scoreHealth(s, z, fscore);
@@ -336,8 +332,17 @@ function computeAll(){
     if (edge.mdi.v >= 78) m.flags.green.push('Wide-moat profile: returns far above the cost of capital with strong pricing power');
     if (edge.afs.v <= 28) m.flags.red.push('Fragile under stress: deep drawdowns, slow recoveries, weak shock absorbers');
     m.verdict = buildVerdict(s, m);
-    out.set(s.t, m);
+    return m;
   }
+}
+
+function computeAll(){
+  const peBySec = {};
+  for (const s of STOCKS){ if (s.pe){ (peBySec[s.sec] = peBySec[s.sec] || []).push(s.pe); } }
+  SECTOR_PE = {};
+  for (const k in peBySec){ const a = peBySec[k].sort((x, y) => x - y); SECTOR_PE[k] = a[Math.floor(a.length / 2)]; }
+  const out = new Map();
+  for (const s of STOCKS) out.set(s.t, computeOne(s, SECTOR_PE[s.sec]));
   return out;
 }
 

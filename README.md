@@ -38,7 +38,8 @@ Both backends share the exact same fetch/mapping code (`api/_lib/yahoo.js`), and
 | View | What it does |
 |---|---|
 | **Dashboard** | Index tape, top Emerald picks, sector heatmap, gainers/losers, research-signal feed, watchlist snapshot |
-| **Screener** | 9 strategy presets (Value Gems, Compounders, Dividend Income, GARP, Momentum, Turnaround Watch, Caution List…) + custom filters, fully sortable |
+| **Search** | Hybrid: instant results from the loaded universe **plus Yahoo-wide symbol search** — open any listed equity/ETF on Earth and it's fetched & scored on demand |
+| **Screener** | 11 strategy presets (Value Gems, Compounders, Dividend Income, GARP, Momentum, Edge Leaders, Mispriced Growth, Turnaround Watch, Caution List…) + custom filters, fully sortable |
 | **Stock page** | Price chart (1M–5Y with 50/200-day SMAs), 5-pillar score radar, full fundamentals, **interactive DCF with sliders**, Piotroski F-Score, Altman Z-Score, green/red flag detection, sector peers |
 | **Compare** | Up to 4 stocks: radar overlay + 21-metric head-to-head with best-in-row highlighting |
 | **Watchlist** | Persistent (localStorage) idea tracker sorted by score |
@@ -76,8 +77,9 @@ Screen for them with the **Edge Leaders** and **Mispriced Growth** presets.
 ```
 api/_lib/yahoo.js   shared Yahoo Finance fetchers + ticker universe (single source of truth)
 api/universe.js     Vercel fn: chunk manifest
-api/batch.js        Vercel fn: fetch up to 12 tickers (CDN-cached 6h)
+api/batch.js        Vercel fn: fetch up to 12 tickers (CDN-cached 6h) — also powers on-demand loads
 api/chart.js        Vercel fn: price history for one symbol (CDN-cached 1h)
+api/search.js       Vercel fn: Yahoo-wide symbol search (CDN-cached 24h)
 server.mjs          local Node server: static files + same API, disk cache, 6h TTL
 vercel.json         function maxDuration + sw.js cache header
 index.html          app shell + boot screen

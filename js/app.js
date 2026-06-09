@@ -54,7 +54,27 @@ const App = {
     if (location.hash.includes('compare')) render();
   },
   rmCompare(t){ CMP = CMP.filter(x => x !== t); store.set('em_cmp', CMP); render(); },
-  rmHolding(i){ const h = PORT[i]; PORT.splice(i, 1); store.set('em_port', PORT); toast(`${h.t} position removed`); render(); }
+  rmHolding(i){ const h = PORT[i]; PORT.splice(i, 1); store.set('em_port', PORT); toast(`${h.t} position removed`); render(); },
+
+  /* Load any Yahoo-listed ticker outside the built-in universe and score it
+     with the full engine. Returns true when the stock is ready in METRICS. */
+  async loadTicker(t){
+    t = t.toUpperCase();
+    if (METRICS.has(t)) return true;
+    if (DATA_MODE === 'demo') return false;
+    try {
+      const r = await fetch('/api/batch?t=' + encodeURIComponent(t));
+      if (!r.ok) return false;
+      const j = await r.json();
+      const s = (j.stocks || [])[0];
+      if (!s || s.px == null || !s.closes || s.closes.length < 240) return false;   // engine needs ~1y of history
+      SERIES_MAP && SERIES_MAP.set(s.t, s.closes);
+      DATES_MAP && DATES_MAP.set(s.t, s.dates.map(d => new Date(d)));
+      const { closes, dates, ...rest } = s;
+      METRICS.set(rest.t, computeOne(rest, SECTOR_PE[rest.sec]));
+      return true;
+    } catch { return false; }
+  }
 };
 window.App = App;
 
@@ -260,8 +280,22 @@ const RANGES = { '1M': 21, '3M': 63, '6M': 126, '1Y': 252, '5Y': TRADING_DAYS };
 let stockRange = '1Y';
 
 function renderStock(t){
+  t = t.toUpperCase();
   const m = METRICS.get(t);
-  if (!m){ view().innerHTML = `<div class="empty-state card"><div class="ei">∅</div><b>Unknown ticker "${t}"</b><p>Try the search bar or the screener.</p></div>`; return; }
+  if (!m){
+    if (DATA_MODE === 'demo'){
+      view().innerHTML = `<div class="empty-state card"><div class="ei">∅</div><b>"${escHTML(t)}" isn't in the demo dataset</b><p>Start the data server (npm start) or deploy to load any Yahoo-listed ticker.</p></div>`;
+      return;
+    }
+    view().innerHTML = `<div class="empty-state card"><div class="ei">◌</div><b>Loading ${escHTML(t)}…</b><p>Fetching live fundamentals and price history from Yahoo Finance.</p></div>`;
+    App.loadTicker(t).then(ok => {
+      if (!location.hash.includes('/stock/')) return;   // user navigated away
+      if (ok) renderStock(t);
+      else view().innerHTML = `<div class="empty-state card"><div class="ei">∅</div><b>Couldn't load "${escHTML(t)}"</b><p>Unknown symbol, no price data, or under a year of trading history (the scoring engine needs ~1 year).</p>
+        <button class="btn primary" style="margin-top:16px" onclick="App.go('screener')">Back to the screener</button></div>`;
+    });
+    return;
+  }
   const s = m.s;
   const watched = WATCH.includes(t);
   const peers = RANKED.filter(x => x.s.sec === s.sec && x.s.t !== t).slice(0, 5);
@@ -572,7 +606,13 @@ function renderCompare(){
     ms.map((m, i) => ({ color: CMP_COLORS[i], values: [m.sv, m.sg, m.sq, m.sh, m.sm, m.edge.score] })), 330);
 
   const inp = $('#cmpSearch');
-  if (inp) attachAutocomplete(inp, $('#cmpAC'), t => { App.addCompare(t); render(); });
+  if (inp) attachAutocomplete(inp, $('#cmpAC'), async t => {
+    if (!METRICS.has(t)){
+      toast(`Loading ${t}…`);
+      if (!await App.loadTicker(t)){ toast(`Couldn't load "${t}"`); return; }
+    }
+    App.addCompare(t); render();
+  });
 }
 
 // ============================================================
@@ -703,10 +743,14 @@ function renderPortfolio(params){
 
   const tickInp = $('#pTick');
   attachAutocomplete(tickInp, $('#pAC'), t => { tickInp.value = t; });
-  $('#pAdd').onclick = () => {
+  $('#pAdd').onclick = async () => {
     const t = tickInp.value.trim().toUpperCase();
-    const m = METRICS.get(t);
-    if (!m) { toast('Unknown ticker — pick one from the coverage universe'); return; }
+    let m = METRICS.get(t);
+    if (!m && DATA_MODE !== 'demo'){
+      toast(`Loading ${t}…`);
+      if (await App.loadTicker(t)) m = METRICS.get(t);
+    }
+    if (!m) { toast(DATA_MODE === 'demo' ? 'Unknown ticker — demo mode only covers the built-in universe' : `Couldn't load "${t}" from Yahoo Finance`); return; }
     const sh = parseFloat($('#pSh').value);
     if (!sh || sh <= 0) { toast('Enter a share count'); return; }
     const cost = parseFloat($('#pCost').value) || m.s.px;
@@ -822,32 +866,62 @@ function searchStocks(q){
     .sort((a, b) => (b.s.t.toUpperCase().startsWith(q) - a.s.t.toUpperCase().startsWith(q)) || b.score - a.score)
     .slice(0, 8);
 }
+const escHTML = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* Hybrid autocomplete: instant matches from the loaded universe, plus a
+   debounced Yahoo-wide symbol search (/api/search) covering EVERY listed
+   equity/ETF. Remote picks are loaded on demand via App.loadTicker. */
 function attachAutocomplete(input, listEl, onPick){
   if (!input || !listEl) return;
-  let sel = -1;
+  let sel = -1, remote = [], rTimer = null, token = 0;
   const close = () => { listEl.classList.remove('open'); sel = -1; };
+  const items = () => {
+    const local = searchStocks(input.value)
+      .map(m => ({ t: m.s.t, name: m.s.n, score: m.score }));
+    const seen = new Set(local.map(it => it.t));
+    const rem = remote.filter(r => !seen.has(r.sym)).slice(0, 6)
+      .map(r => ({ t: r.sym, name: r.name, exch: r.exch }));
+    return [...local, ...rem].slice(0, 10);
+  };
   const draw = () => {
-    const res = searchStocks(input.value);
+    const res = items();
     if (!res.length){ close(); return; }
-    listEl.innerHTML = res.map((m, i) => `
-      <div class="sr-item ${i === sel ? 'sel' : ''}" data-t="${m.s.t}">
-        <span class="sr-tick">${m.s.t}</span><span class="sr-name">${m.s.n}</span>
-        <span class="sr-score" style="color:${scoreColor(m.score)}">${Math.round(m.score)}</span>
+    if (sel >= res.length) sel = res.length - 1;
+    listEl.innerHTML = res.map((it, i) => `
+      <div class="sr-item ${i === sel ? 'sel' : ''}" data-t="${escHTML(it.t)}">
+        <span class="sr-tick">${escHTML(it.t)}</span><span class="sr-name">${escHTML(it.name)}</span>
+        ${it.score != null
+          ? `<span class="sr-score" style="color:${scoreColor(it.score)}">${Math.round(it.score)}</span>`
+          : `<span class="sr-exch">${escHTML(it.exch || 'Yahoo')}</span>`}
       </div>`).join('');
     listEl.classList.add('open');
     listEl.querySelectorAll('.sr-item').forEach(el => {
       el.onmousedown = e => { e.preventDefault(); onPick(el.dataset.t); close(); };
     });
   };
-  input.addEventListener('input', () => { sel = -1; draw(); });
-  input.addEventListener('focus', draw);
+  const queueRemote = () => {
+    clearTimeout(rTimer);
+    const q = input.value.trim();
+    if (q.length < 1 || DATA_MODE === 'demo') { remote = []; return; }
+    rTimer = setTimeout(async () => {
+      const my = ++token;
+      try {
+        const r = await fetch('/api/search?q=' + encodeURIComponent(q));
+        if (!r.ok) return;
+        const j = await r.json();
+        if (my === token && input.value.trim() === q){ remote = j.results || []; draw(); }
+      } catch { /* offline — local results still shown */ }
+    }, 260);
+  };
+  input.addEventListener('input', () => { sel = -1; remote = []; draw(); queueRemote(); });
+  input.addEventListener('focus', () => { draw(); queueRemote(); });
   input.addEventListener('blur', () => setTimeout(close, 150));
   input.addEventListener('keydown', e => {
-    const items = listEl.querySelectorAll('.sr-item');
-    if (e.key === 'ArrowDown'){ sel = Math.min(sel + 1, items.length - 1); draw(); e.preventDefault(); }
+    const res = items();
+    if (e.key === 'ArrowDown'){ sel = Math.min(sel + 1, res.length - 1); draw(); e.preventDefault(); }
     else if (e.key === 'ArrowUp'){ sel = Math.max(sel - 1, 0); draw(); e.preventDefault(); }
     else if (e.key === 'Enter'){
-      const pick = sel >= 0 && items[sel] ? items[sel].dataset.t : (searchStocks(input.value)[0] || {}).s?.t;
+      const pick = (sel >= 0 && res[sel]) ? res[sel].t : (res[0] || {}).t;
       if (pick){ onPick(pick); close(); }
     } else if (e.key === 'Escape') close();
   });
@@ -889,9 +963,17 @@ function bootApp(){
   MARKET = computeMarket(METRICS);
   INSIGHTS = buildInsights(METRICS);
   RANKED = [...METRICS.values()].sort((a, b) => b.score - a.score);
-  // drop watch/portfolio/compare entries for tickers not in the loaded universe
-  WATCH = WATCH.filter(t => METRICS.has(t));
-  CMP = CMP.filter(t => METRICS.has(t));
+  if (DATA_MODE === 'demo'){
+    // demo data can't fetch arbitrary tickers — hide entries we can't show
+    WATCH = WATCH.filter(t => METRICS.has(t));
+    CMP = CMP.filter(t => METRICS.has(t));
+  } else {
+    // restore saved watch/portfolio/compare tickers that live outside the universe
+    const extras = [...new Set([...WATCH, ...PORT.map(h => h.t), ...CMP])].filter(t => !METRICS.has(t));
+    if (extras.length){
+      Promise.all(extras.map(t => App.loadTicker(t))).then(r => { if (r.some(Boolean)) render(); });
+    }
+  }
 
   attachAutocomplete($('#globalSearch'), $('#searchResults'), t => {
     $('#globalSearch').value = ''; App.go('stock/' + t);

@@ -439,7 +439,7 @@ function renderStock(t){
       if (m.longSeries){ src = m.longSeries; srcDates = m.longDates; }
       else {
         try {
-          const r = await fetch(`/api/chart/${encodeURIComponent(t)}?years=5`);
+          const r = await fetch(`/api/chart?t=${encodeURIComponent(t)}&years=5`);
           if (r.ok){
             const j = await r.json();
             m.longSeries = j.closes; m.longDates = j.dates.map(d => new Date(d));
@@ -912,7 +912,8 @@ function bootApp(){
 }
 App.refreshData = async () => {
   toast('Refreshing market data…');
-  try { await fetch('/api/universe?refresh=1'); toast('Refresh started — reload in ~1 minute'); }
-  catch { toast('Data server unreachable'); }
+  localStorage.removeItem('em_universe');   // drop the fast-boot cache
+  try { await fetch('/api/universe?refresh=1'); } catch { /* serverless ignores this */ }
+  setTimeout(() => location.reload(), 600);
 };
 DATA_READY.then(bootApp);

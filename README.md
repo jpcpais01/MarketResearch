@@ -2,7 +2,7 @@
 
 A progressive web app for finding good investments, powered by **real market data** (Yahoo Finance). Dark glassmorphism UI, zero build step, one tiny server.
 
-## Run it
+## Run it locally
 
 ```powershell
 npm install   # first time only
@@ -13,10 +13,25 @@ On first launch the server pulls the full universe (~90 companies: live quotes, 
 
 Chrome/Edge will offer **Install** in the address bar to run it as a standalone app.
 
+## Deploy to Vercel
+
+Just import the repo on [vercel.com](https://vercel.com/new) (framework preset: **Other**) — no configuration needed. Or from the CLI:
+
+```powershell
+npx vercel --prod
+```
+
+It works out of the box because the project ships two interchangeable backends:
+
+- **Locally** → `server.mjs` builds the whole universe in one process and caches it on disk.
+- **On Vercel** → the `api/` folder becomes serverless functions. `/api/universe` returns a chunk manifest, and the browser assembles the universe from parallel `/api/batch` calls (8 tickers each, ~64s total limit per function — each chunk takes ~4s). Responses carry `s-maxage=21600`, so Vercel's CDN caches every chunk for 6 hours: after the first visitor, everyone else loads instantly and Yahoo is barely touched.
+
+Both backends share the exact same fetch/mapping code (`api/_lib/yahoo.js`), and the frontend auto-detects which one it's talking to. Repeat visits boot instantly from a 30-minute localStorage cache.
+
 **Data modes** (shown as a badge in the top bar):
-- **● LIVE** — real data from the API server
+- **● LIVE** — real data from the API (local server or Vercel functions)
 - **● CACHED** — offline, using your last saved real data
-- **● DEMO** — no server reachable; bundled illustrative dataset
+- **● DEMO** — no API reachable at all; bundled illustrative dataset
 
 ## What's inside
 
@@ -59,12 +74,16 @@ Screen for them with the **Edge Leaders** and **Mispriced Growth** presets.
 ## Architecture
 
 ```
-server.mjs          Node data server: static files + /api/universe, /api/chart
-                    (Yahoo Finance via yahoo-finance2, disk cache, 6h TTL)
+api/_lib/yahoo.js   shared Yahoo Finance fetchers + ticker universe (single source of truth)
+api/universe.js     Vercel fn: chunk manifest
+api/batch.js        Vercel fn: fetch up to 12 tickers (CDN-cached 6h)
+api/chart.js        Vercel fn: price history for one symbol (CDN-cached 1h)
+server.mjs          local Node server: static files + same API, disk cache, 6h TTL
+vercel.json         function maxDuration + sw.js cache header
 index.html          app shell + boot screen
 manifest.webmanifest / sw.js / icons/   PWA plumbing (API calls never cached)
 css/styles.css      glassmorphism design system
-js/live.js          universe loader: live → localStorage cache → demo fallback
+js/live.js          universal loader: auto-detects backend; live → cache → demo
 js/data.js          bundled fallback dataset (used only when offline w/o cache)
 js/analysis.js      scoring engine, DCF, F/Z-scores, flags
 js/edge.js          the five Emerald Edge signals

@@ -4,6 +4,9 @@ node_modules/
 # live market-data cache (regenerated on first run)
 cache/
 
+# vercel
+.vercel/
+
 # OS noise
 Thumbs.db
 .DS_Store

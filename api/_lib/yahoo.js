@@ -10,12 +10,43 @@ import YahooFinance from 'yahoo-finance2';
 export const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey', 'ripHistorical'] });
 
 export const TICKERS = [
+  // Mega-cap tech & semiconductors
   'AAPL','MSFT','NVDA','GOOGL','AMZN','META','AVGO','ORCL','CRM','ADBE','AMD','INTC','QCOM','TXN','CSCO','NOW','INTU','AMAT','MU','PLTR','SNOW','CRWD','PANW','SHOP','UBER','ABNB','NFLX','PYPL',
+  'TSLA','IBM','ACN','TSM','ASML','ADI','LRCX','KLAC','NXPI','MRVL','MCHP','ON','SWKS','TER','MPWR','ARM','SMCI','DELL','HPQ','HPE','NTAP','ANET','MSI','APH','TEL','GLW','CTSH','VRSN','SNPS','CDNS','ADSK','WDAY','FTNT','TEAM',
+  // Software / internet / consumer platforms
+  'DDOG','MDB','ZS','OKTA','NET','HUBS','RBLX','DASH','LYFT','SPOT','TTD','EA','TTWO','MTCH',
+  // Fintech / brokerages / crypto-adjacent
+  'COIN','HOOD','SOFI','AFRM','MSTR',
+  // Financials
   'BRK.B','JPM','V','MA','BAC','GS','MS','AXP','WFC',
+  'C','USB','PNC','TFC','SCHW','BLK','BX','KKR','APO','CME','ICE','NDAQ','SPGI','MCO','MSCI','COF','AIG','MET','PRU','ALL','TRV','PGR','CB',
+  'FITB','KEY','RF','HBAN','AJG','FIS',
+  // Healthcare
   'UNH','LLY','JNJ','ABBV','MRK','PFE','TMO','ISRG','AMGN','GILD','CVS','MDT',
+  'ABT','DHR','BMY','SYK','BSX','EW','BDX','RMD','IDXX','IQV','DXCM','PODD','REGN','VRTX','BIIB','MRNA','HUM','CI','ELV','CNC','HCA','ZTS','MCK',
+  // Consumer discretionary & retail
   'WMT','COST','PG','KO','PEP','MCD','NKE','SBUX','HD','LOW','TGT','CMG','DIS','F','GM',
+  'TJX','ROST','DG','DLTR','ULTA','LULU','DECK','RL','BBY','EBAY','CHWY','BKNG','EXPE','MAR','HLT','LVS','MGM','RCL','YUM','DPZ','ORLY',
+  // Consumer staples
+  'MDLZ','KHC','GIS','HSY','KMB','CL','CLX','TSN','ADM','KR','SYY','STZ','MO','PM','MNST',
+  // Industrials / aerospace & defense / transport
   'XOM','CVX','COP','CAT','DE','BA','GE','LMT','UPS','UNP','LIN','SHW','FCX',
-  'T','VZ','TMUS','NEE','DUK','SO','O','PLD','AMT',
+  'HON','MMM','RTX','NOC','GD','LHX','TDG','AXON','EMR','ETN','PH','ITW','CMI','PCAR','CSX','NSC','FDX','ODFL','URI','FAST','CARR',
+  'GWW','PWR','HWM','GEV','GEHC','NUE','VMC','NEM',
+  // Chemicals & materials
+  'APD','ECL','DD','DOW','PPG','ALB',
+  // Energy
+  'SLB','HAL','BKR','OXY','EOG','FANG','MPC','PSX','VLO','KMI',
+  // Utilities
+  'NEE','DUK','SO',
+  'D','EXC','AEP','SRE','XEL','ED','WEC','PEG','VST','CEG',
+  // REITs
+  'O','PLD','AMT',
+  'SPG','EQIX','DLR','PSA','EXR','AVB','VICI','WELL','IRM','CCI',
+  // Communication / media
+  'T','VZ','TMUS',
+  'CMCSA','CHTR','WBD','FOXA','OMC','LYV',
+  // Higher-beta / speculative
   'RIVN','SNAP'
 ];
 

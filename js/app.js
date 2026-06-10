@@ -208,15 +208,13 @@ function renderAction(t){
     view().innerHTML = `<div class="empty-state card"><div class="ei">∅</div><b>Not enough overlapping history for ${escHTML(PA.t)}</b></div>`;
     return;
   }
-  const mUpUp = pa.mktUp.days - pa.mktUp.stockDn;     // market up & stock up
-  const mDnDn = pa.mktDown.days - pa.mktDown.stockUp; // market down & stock down
   const alpha = pa.ret - pa.mret;
   const pasSig = m.edge.pas;
   const qcell = (title, days, total, avg, good) => `
     <div class="glass" style="padding:14px;border-radius:14px;background:${good ? 'rgba(52,211,153,.10)' : 'rgba(248,113,113,.09)'}">
       <div class="small muted" style="margin-bottom:6px">${title}</div>
       <div style="font-size:21px;font-weight:800" class="num">${days} <span class="small muted" style="font-weight:600">of ${total} days (${total ? Math.round(days / total * 100) : 0}%)</span></div>
-      <div class="small" style="margin-top:4px">avg move ${F.chg(avg, 2)}</div>
+      <div class="small" style="margin-top:4px">${avg == null ? '<span class="muted">no such days</span>' : `avg ${PA.t} move ${F.chg(avg, 2)}`}</div>
     </div>`;
   const streakTxt = pa.curStreak > 0 ? `${pa.curStreak} day${pa.curStreak > 1 ? 's' : ''} up` : pa.curStreak < 0 ? `${-pa.curStreak} day${pa.curStreak < -1 ? 's' : ''} down` : 'flat';
 
@@ -272,10 +270,10 @@ function renderAction(t){
     <div class="card" style="margin:0">
       <div class="card-title">The four kinds of day — who led whom</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        ${qcell(`▼ Index down · ${PA.t} UP`, pa.mktDown.stockUp, pa.mktDown.days, pa.mktDown.avgStock, true)}
-        ${qcell(`▼ Index down · ${PA.t} down`, mDnDn, pa.mktDown.days, pa.mktDown.avgMkt, false)}
-        ${qcell(`▲ Index up · ${PA.t} up`, mUpUp, pa.mktUp.days, pa.mktUp.avgStock, true)}
-        ${qcell(`▲ Index up · ${PA.t} DOWN`, pa.mktUp.stockDn, pa.mktUp.days, pa.mktUp.avgMkt, false)}
+        ${qcell(`▼ Index down · ${PA.t} UP`, pa.quad.dnUp.n, pa.mktDown.days, pa.quad.dnUp.avg, true)}
+        ${qcell(`▼ Index down · ${PA.t} down`, pa.quad.dnDn.n, pa.mktDown.days, pa.quad.dnDn.avg, false)}
+        ${qcell(`▲ Index up · ${PA.t} up`, pa.quad.upUp.n, pa.mktUp.days, pa.quad.upUp.avg, true)}
+        ${qcell(`▲ Index up · ${PA.t} DOWN`, pa.quad.upDn.n, pa.mktUp.days, pa.quad.upDn.avg, false)}
       </div>
       <div class="muted small" style="margin-top:10px">Avg ${PA.t} move on index-down days: <b>${F.chg(pa.mktDown.avgStock, 2)}</b> (index ${F.chg(pa.mktDown.avgMkt, 2)}) · on index-up days: <b>${F.chg(pa.mktUp.avgStock, 2)}</b> (index ${F.chg(pa.mktUp.avgMkt, 2)})</div>
     </div>

@@ -315,9 +315,10 @@ function priceActionStats(series, mkt, days, dates){
   let mDn = 0, upOnDn = 0, sumS_dn = 0, sumM_dn = 0;
   let mUp = 0, dnOnUp = 0, sumS_up = 0, sumM_up = 0;
   let beat = 0;
+  let sDU = 0, sDD = 0, sUU = 0, sUD = 0;   // stock's avg move per quadrant
   for (let i = 0; i < n; i++){
-    if (mr[i] < 0){ mDn++; sumS_dn += sr[i]; sumM_dn += mr[i]; if (sr[i] > 0) upOnDn++; }
-    else if (mr[i] > 0){ mUp++; sumS_up += sr[i]; sumM_up += mr[i]; if (sr[i] < 0) dnOnUp++; }
+    if (mr[i] < 0){ mDn++; sumS_dn += sr[i]; sumM_dn += mr[i]; if (sr[i] > 0){ upOnDn++; sDU += sr[i]; } else sDD += sr[i]; }
+    else if (mr[i] > 0){ mUp++; sumS_up += sr[i]; sumM_up += mr[i]; if (sr[i] < 0){ dnOnUp++; sUD += sr[i]; } else sUU += sr[i]; }
     if (sr[i] > mr[i]) beat++;
   }
 
@@ -373,6 +374,12 @@ function priceActionStats(series, mkt, days, dates){
                avgStock: mDn ? sumS_dn / mDn * 100 : null, avgMkt: mDn ? sumM_dn / mDn * 100 : null },
     mktUp:   { days: mUp, stockDn: dnOnUp, rateDn: mUp ? dnOnUp / mUp * 100 : null,
                avgStock: mUp ? sumS_up / mUp * 100 : null, avgMkt: mUp ? sumM_up / mUp * 100 : null },
+    quad: {   // stock's average move WITHIN each quadrant
+      dnUp: { n: upOnDn,         avg: upOnDn         ? sDU / upOnDn * 100         : null },
+      dnDn: { n: mDn - upOnDn,   avg: (mDn - upOnDn) ? sDD / (mDn - upOnDn) * 100 : null },
+      upUp: { n: mUp - dnOnUp,   avg: (mUp - dnOnUp) ? sUU / (mUp - dnOnUp) * 100 : null },
+      upDn: { n: dnOnUp,         avg: dnOnUp         ? sUD / dnOnUp * 100         : null }
+    },
     upCap: sumM_up ? sumS_up / sumM_up : null,
     dnCap: sumM_dn ? sumS_dn / sumM_dn : null,
     upDays: up, dnDays: dn,

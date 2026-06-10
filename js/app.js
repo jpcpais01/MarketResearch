@@ -240,7 +240,7 @@ function renderAction(t){
   <h1 class="page">Price Action Lab</h1>
   <div class="page-sub">Day-by-day behavior vs the market — who actually holds the bid when the index sells off.</div>
 
-  <div class="card mb tight">
+  <div class="card mb tight" style="z-index:30">
     <div class="filters" style="grid-template-columns:minmax(170px,1fr) auto auto;align-items:end">
       <div class="field" style="position:relative"><label>Stock</label>
         <input id="paStock" value="${PA.t}" placeholder="Type a ticker or company…" autocomplete="off" spellcheck="false">

@@ -108,7 +108,8 @@ canvas{display:block}
 #globalSearch::placeholder{color:var(--faint)}
 .search-results{
   position:absolute;top:calc(100% + 8px);left:0;right:0;border-radius:16px;max-height:330px;overflow:auto;
-  display:none;z-index:60;padding:6px;
+  display:none;z-index:120;padding:6px;
+  background:rgba(9,17,14,.97);   /* near-solid so results stay readable over any content */
 }
 .search-results.open{display:block}
 .sr-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:11px;cursor:pointer}

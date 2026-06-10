@@ -330,7 +330,7 @@ function computeOne(s, sectorPEHint){
     if (edge.xgs.v != null && edge.xgs.v <= 16)
       m.flags.red.push(`Expectation trap: price already demands ~${edge.xgs.implied.toFixed(0)}%/yr growth — beyond what fundamentals support`);
     if (edge.mdi.v >= 78) m.flags.green.push('Wide-moat profile: returns far above the cost of capital with strong pricing power');
-    if (edge.afs.v <= 28) m.flags.red.push('Fragile under stress: deep drawdowns, slow recoveries, weak shock absorbers');
+    if (edge.afs.v <= 35) m.flags.red.push('Fragile under stress: deep drawdowns, slow recoveries, weak shock absorbers');
     m.verdict = buildVerdict(s, m);
     return m;
   }

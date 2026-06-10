@@ -77,6 +77,8 @@ function edgeImpliedGrowth(s){
 function edgeXGS(s){
   const implied = edgeImpliedGrowth(s);
   if (implied == null) return { v: null, read: 'Needs positive free cash flow — a reverse DCF has nothing to invert here.', implied: null, ach: null };
+  if (s.egf == null && s.rg3 == null && s.eg == null)
+    return { v: null, read: `Price implies ~${implied.toFixed(0)}%/yr FCF growth, but no growth estimates exist to compare it against.`, implied, ach: null };
   const ach = wavg([
     [s.egf != null ? clamp(s.egf, -5, 30) : null, 5],
     [s.rg3 != null ? clamp(s.rg3, -5, 30) : null, 3],
@@ -99,24 +101,26 @@ function edgeAFS(s, series){
   for (let i = start; i < n; i++){
     const r = series[i] / series[i - 1] - 1;
     if (r > 0){ upSum += r; upN++; } else if (r < 0){ dnSum -= r; dnN++; }
-    if (series[i] > peak) peak = series[i]; else under++;
+    if (series[i] > peak) peak = series[i];
     const dd = (series[i] / peak - 1) * 100;
+    if (dd < -5) under++;          // "underwater" = more than 5% below the running peak
     if (dd < maxDD) maxDD = dd;
   }
   const asym = (upN && dnN) ? (upSum / upN) / (dnSum / dnN) : null;
   const uwFrac = under / (n - start);
   const v = wavg([
     [asym != null ? lin(asym, 0.82, 1.18) : null, 3],
-    [lin(maxDD, -42, -8), 2],
-    [lin(uwFrac, 0.92, 0.30), 2],
+    [lin(maxDD, -55, -10), 2],
+    [lin(uwFrac, 0.90, 0.10), 2],
     [s.fcf != null ? lin(s.fcf, -5, 25) : null, 2],
     [s.de != null ? lin(s.de, 2.8, 0) : null, 1],
     [lin(s.beta ?? 1, 2.2, 0.6), 1]
   ]);
+  const uwPct = Math.round(uwFrac * 100);
   let read;
-  if (v >= 70) read = `Up-days outweigh down-days (${asym ? asym.toFixed(2) + '×' : '—'}), max 1Y drawdown just ${maxDD.toFixed(0)}% — absorbs shocks and recovers fast.`;
-  else if (v >= 45) read = `Ordinary resilience: ${maxDD.toFixed(0)}% max drawdown, underwater ${Math.round(uwFrac * 100)}% of the past year.`;
-  else read = `Fragile profile — ${maxDD.toFixed(0)}% drawdowns, underwater ${Math.round(uwFrac * 100)}% of the year${s.fcf != null && s.fcf < 0 ? ', with no cash buffer to play offense' : ''}.`;
+  if (v >= 70) read = `Up-days outweigh down-days (${asym ? asym.toFixed(2) + '×' : '—'}), max 1Y drawdown ${maxDD.toFixed(0)}%, >5% off its high only ${uwPct}% of the year — absorbs shocks and recovers fast.`;
+  else if (v >= 45) read = `Ordinary resilience: ${maxDD.toFixed(0)}% max drawdown, spent ${uwPct}% of the past year more than 5% below its high.`;
+  else read = `Fragile profile — ${maxDD.toFixed(0)}% drawdowns, stuck >5% below its high ${uwPct}% of the year${s.fcf != null && s.fcf < 0 ? ', with no cash buffer to play offense' : ''}.`;
   return { v, read, asym, maxDD, uwFrac };
 }
 

@@ -86,7 +86,7 @@ function renderDashboard(){
   const watchRows = WATCH.map(t => METRICS.get(t)).filter(Boolean).slice(0, 5);
   view().innerHTML = `
   <h1 class="page">Market Overview</h1>
-  <div class="page-sub">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} · ${STOCKS.length} companies under coverage</div>
+  <div class="page-sub">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} · ${STOCKS.length} companies under coverage · <span class="${marketRegime().k === 'on' ? 'up' : marketRegime().k === 'off' ? 'down' : ''}" title="${escHTML(marketRegime().desc)}" style="cursor:help">◉ ${marketRegime().name} regime</span></div>
 
   <div class="grid g3 mb">
     ${MARKET.idx.map((ix, i) => `
@@ -340,8 +340,9 @@ function renderStock(t){
       ${ringHTML(m.score, 128, 'Emerald Score', true)}
       ${pillarsHTML(m)}
       <div class="verdict">
-        <div class="vtag">${ratingTag(m)}</div>
+        <div class="vtag">${ratingTag(m)} <span class="sector-chip" title="${escHTML(m.arch.why)}">◈ ${m.arch.name}</span> <span class="sector-chip" title="How much the pillars agree, weighted by importance, plus data completeness (${Math.round(m.coverage * 100)}% of fields available)">${m.convLabel} conviction</span></div>
         <p>${m.verdict}</p>
+        <p class="muted small" title="${escHTML(m.regime.desc)}">Adaptive weights (${m.arch.name} · ${m.regime.name}): Value ${Math.round(m.weights.sv * 100)}% · Growth ${Math.round(m.weights.sg * 100)}% · Quality ${Math.round(m.weights.sq * 100)}% · Health ${Math.round(m.weights.sh * 100)}% · Momentum ${Math.round(m.weights.sm * 100)}% · Edge ${Math.round(m.weights.edge * 100)}%</p>
       </div>
       <div style="min-width:230px;flex:1"><canvas id="stRadar"></canvas></div>
     </div>
@@ -790,15 +791,22 @@ function renderPortfolio(params){
 // ============================================================
 function renderAcademy(){
   const items = [
-    ['◆', 'How the Emerald Score works', `
-      <p>Every stock gets a <b>0–100 composite score</b> built from five pillars, each scored independently and then blended:</p>
+    ['◆', 'How the Emerald Score works — adaptive, not one-size-fits-all', `
+      <p>Every stock gets a <b>0–100 composite score</b> from five classic pillars plus the Edge signals — but unlike most screeners, <b>the rubric adapts to what the company is and what the market is doing</b>:</p>
       <ul>
-        <li><b>Value (26%)</b> — earnings yield, free-cash-flow yield, PEG, EV/EBITDA, price vs sector P/E, and discount to DCF fair value. Cheap relative to the cash a business produces.</li>
-        <li><b>Quality (24%)</b> — margins, ROE, ROA and especially <b>ROIC</b>. Great businesses earn high returns on the capital they employ, year after year.</li>
-        <li><b>Growth (20%)</b> — historical and forecast revenue & EPS growth, plus consistency between them (steady beats spiky).</li>
-        <li><b>Momentum (16%)</b> — price vs 50/200-day averages, 6-month return, position in the 52-week range, RSI. Markets trend; fighting the tape is expensive.</li>
-        <li><b>Health (14%)</b> — leverage, liquidity, interest coverage, Altman Z and Piotroski F. Balance-sheet risk is what turns drawdowns into permanent losses.</li>
+        <li><b>Value</b> — earnings yield, free-cash-flow yield, PEG, EV/EBITDA, price vs sector P/E, and discount to DCF fair value.</li>
+        <li><b>Quality</b> — margins, ROE, ROA and especially <b>ROIC</b>: great businesses earn high returns on capital, year after year.</li>
+        <li><b>Growth</b> — historical and forecast revenue & EPS growth, plus consistency between them (steady beats spiky).</li>
+        <li><b>Health</b> — leverage, liquidity, interest coverage, Altman Z and Piotroski F. Balance-sheet risk turns drawdowns into permanent losses.</li>
+        <li><b>Momentum</b> — price vs 50/200-day averages, 6-month return, 52-week position, RSI.</li>
       </ul>
+      <p>Three layers make it adaptive:</p>
+      <ul>
+        <li><b>◈ Archetypes</b> — each stock is classified (Compounder, Hypergrowth, Dividend Anchor, Deep Value, Turnaround, Financial, All-rounder) and judged by the rubric that fits: a utility isn't graded on momentum, a hypergrowth name isn't condemned by P/E, a bank isn't penalized for missing EV metrics. The archetype and its weights are shown on every stock page.</li>
+        <li><b>◉ Market regime</b> — the S&P 500's own trend sets a tilt: in a <b>risk-off</b> tape, health and quality are weighted up while momentum and growth are dialed down; in <b>risk-on</b>, the reverse, mildly. What matters in a storm differs from what matters in a melt-up.</li>
+        <li><b>⚖ Live calibration</b> — ratio inputs (ROIC, margins, yields, growth) are scored as a blend of fixed anchors and the stock's <i>percentile in the live universe</i>, so "good" means good in today's actual market, not against stale hardcoded thresholds.</li>
+      </ul>
+      <p>Each rating also carries a <b>conviction</b> tag: High when the pillars broadly agree and the data is complete, Low when they conflict — a 60 made of all-60s is a steadier bet than a 60 made of 90s and 20s.</p>
       <p><b>78+ = Strong Buy</b>, 64+ = Buy, 50+ = Hold, 36+ = Underperform, below = Avoid. The score is a research filter, not an oracle — always read the flags and form your own thesis.</p>`],
     ['✦', 'The Emerald Edge signals — our own seven methods', `
       <p>The classic pillars use well-known finance. The <b>Edge signals are Emerald's own methodology</b>, built on two ideas most retail tools skip: a stock's behavior only means something <i>relative to the market</i>, and cheap/expensive only means something <i>relative to every other stock you could buy instead</i>. Together they carry 16% of the composite.</p>

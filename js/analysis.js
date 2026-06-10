@@ -156,12 +156,12 @@ function scoreValue(s, dcf, sectorPE){
   const peg = (s.pe && s.egf > 0) ? s.pe / s.egf : null;
   const relPE = (s.pe && sectorPE) ? s.pe / sectorPE : null;
   return wavg([
-    [lin(ey, 1, 9), 3],
-    [lin(fey, 1, 9), 2],
-    [lin(fcfY, 0, 8), 3],
+    [dynLin('ey', ey, 1, 9), 3],
+    [dynLin('fey', fey, 1, 9), 2],
+    [dynLin('fcfY', fcfY, 0, 8), 3],
     [peg != null ? lin(peg, 4, 0.7) : null, 2],
-    [s.ev != null ? lin(s.ev, 30, 6) : null, 2],
-    [s.pb != null ? lin(s.pb, 16, 1) : null, 1],
+    [s.ev != null ? dynLin('ev', s.ev, 30, 6) : null, 2],
+    [s.pb != null ? dynLin('pb', s.pb, 16, 1) : null, 1],
     [relPE != null ? lin(relPE, 2.2, 0.55) : null, 2],
     [dcf ? lin(dcf.upside, -40, 60) : null, 3]
   ]);
@@ -169,28 +169,28 @@ function scoreValue(s, dcf, sectorPE){
 function scoreGrowth(s){
   const cons = (s.rg1 != null && s.rg3 != null) ? Math.abs(s.rg1 - s.rg3) : null;
   return wavg([
-    [lin(s.rg3, -5, 25), 3],
-    [lin(s.rg1, -5, 25), 2],
-    [s.eg != null ? lin(s.eg, -10, 32) : ((s.nm ?? 0) < 0 ? 25 : null), 3],
-    [lin(s.egf, 0, 26), 3],
+    [dynLin('rg3', s.rg3, -5, 25), 3],
+    [dynLin('rg1', s.rg1, -5, 25), 2],
+    [s.eg != null ? dynLin('eg', s.eg, -10, 32) : ((s.nm ?? 0) < 0 ? 25 : null), 3],
+    [dynLin('egf', s.egf, 0, 26), 3],
     [cons != null ? lin(cons, 16, 0) : null, 1]
   ]);
 }
 function scoreQuality(s){
   const roeC = s.roe != null ? Math.min(s.roe, 42) : null;
   return wavg([
-    [s.gm != null ? lin(s.gm, 15, 70) : null, 1],
-    [lin(s.om, 0, 36), 2],
-    [lin(s.nm, 0, 30), 2],
-    [lin(roeC, 0, 32), 2],
-    [s.roic != null ? lin(s.roic, 0, 26) : null, 3],
-    [lin(s.roa, 0, 20), 2],
-    [s.fcf != null ? lin(s.fcf, 0, 32) : null, 2]
+    [s.gm != null ? dynLin('gm', s.gm, 15, 70) : null, 1],
+    [dynLin('om', s.om, 0, 36), 2],
+    [dynLin('nm', s.nm, 0, 30), 2],
+    [dynLin('roe', roeC, 0, 32), 2],
+    [s.roic != null ? dynLin('roic', s.roic, 0, 26) : null, 3],
+    [dynLin('roa', s.roa, 0, 20), 2],
+    [s.fcf != null ? dynLin('fcf', s.fcf, 0, 32) : null, 2]
   ]);
 }
 function scoreHealth(s, z, f){
   return wavg([
-    [s.de != null ? lin(s.de, 3.2, 0) : null, 2],
+    [s.de != null ? dynLin('de', s.de, 3.2, 0) : null, 2],
     [s.cr != null ? lin(s.cr, 0.65, 2.5) : null, 1],
     [s.ic != null ? lin(s.ic, 1.5, 22) : null, 2],
     [z != null ? lin(z, 1.4, 4.2) : null, 2],
@@ -260,11 +260,16 @@ function buildVerdict(s, m){
   const pill = [['valuation', m.sv], ['growth', m.sg], ['profitability', m.sq], ['financial health', m.sh], ['momentum', m.sm], ['Edge signals', m.edge.score]];
   pill.sort((a, b) => b[1] - a[1]);
   const best = pill[0], worst = pill[pill.length - 1];
-  let txt = `${s.t} scores ${Math.round(m.score)}/100 on the Emerald composite — strongest on ${best[0]} (${Math.round(best[1])}), weakest on ${worst[0]} (${Math.round(worst[1])}).`;
+  let txt = `${s.t} scores ${Math.round(m.score)}/100, judged as ${/^[AEIOU]/.test(m.arch.name) ? 'an' : 'a'} ${m.arch.name} under ${m.regime.name.toLowerCase()} market weighting — strongest on ${best[0]} (${Math.round(best[1])}), weakest on ${worst[0]} (${Math.round(worst[1])}).`;
   if (m.dcf) txt += m.dcf.upside >= 0
     ? ` Our base-case DCF pegs fair value near $${m.dcf.iv.toFixed(0)}, ~${Math.round(m.dcf.upside)}% above today's price.`
     : ` Our base-case DCF pegs fair value near $${m.dcf.iv.toFixed(0)}, ~${Math.abs(Math.round(m.dcf.upside))}% below today's price.`;
   txt += ` ${m.flags.green.length} green flag${m.flags.green.length === 1 ? '' : 's'} vs ${m.flags.red.length} red.`;
+  txt += m.convLabel === 'High'
+    ? ` Conviction is high — the pillars broadly agree.`
+    : m.convLabel === 'Moderate'
+      ? ` Conviction is moderate — some pillars disagree; read the flags.`
+      : ` Conviction is LOW — the pillars conflict or data is thin; treat the headline number with care.`;
   return txt;
 }
 
@@ -287,11 +292,79 @@ function buildEdgeStats(){
   const grab = f => STOCKS.map(f).filter(v => v != null && isFinite(v)).sort((a, b) => a - b);
   EDGE_STATS = {
     roic: grab(s => s.roic), gm: grab(s => s.gm), fcf: grab(s => s.fcf), nm: grab(s => s.nm),
-    ev: grab(s => s.ev), fpe: grab(s => s.fpe ?? s.pe), ps: grab(s => s.ps)
+    ev: grab(s => s.ev), fpe: grab(s => s.fpe ?? s.pe), ps: grab(s => s.ps),
+    ey: grab(s => s.pe ? 100 / s.pe : null), fey: grab(s => s.fpe ? 100 / s.fpe : null),
+    fcfY: grab(s => (s.fcf != null && s.ps) ? s.fcf / s.ps : null),
+    pb: grab(s => s.pb), de: grab(s => s.de),
+    rg3: grab(s => s.rg3), rg1: grab(s => s.rg1), eg: grab(s => s.eg), egf: grab(s => s.egf),
+    om: grab(s => s.om), roe: grab(s => s.roe), roa: grab(s => s.roa)
   };
   const bySec = {};
   for (const s of STOCKS){ if (s.roic != null && isFinite(s.roic)) (bySec[s.sec] = bySec[s.sec] || []).push(s.roic); }
   for (const k in bySec){ if (bySec[k].length >= 6) EDGE_STATS['roic:' + k] = bySec[k].sort((a, b) => a - b); }
+}
+
+/* Adaptive score: blend a fixed absolute anchor with the stock's percentile
+   rank in the LIVE universe. "Good" then means good in today's actual market —
+   the scale recalibrates itself to whatever the data reflects — while the
+   absolute half keeps scores meaningful when the whole market is frothy.
+   Direction is inferred from the anchors (worst > best ⇒ lower is better). */
+function dynLin(key, v, worst, best){
+  const a = lin(v, worst, best);
+  if (a == null) return null;
+  let p = typeof edgePct === 'function' ? edgePct(key, v) : null;
+  if (p == null) return a;
+  if (worst > best) p = 100 - p;
+  return 0.5 * a + 0.5 * p;
+}
+
+// ---------- market regime (dynamic weighting) ----------
+let REGIME = null;
+function marketRegime(){
+  if (REGIME) return REGIME;
+  const mkt = marketSeries();
+  const last = mkt.length - 1;
+  const sma200 = smaAt(mkt, Math.min(200, last), last);
+  const vs200 = (mkt[last] / sma200 - 1) * 100;
+  const ret3m = pctRet(mkt, Math.min(63, last));
+  let k, name, desc;
+  if (vs200 < -2 || ret3m < -7){ k = 'off'; name = 'Risk-off'; desc = 'The market is under stress — balance-sheet health, quality and resilience are weighted up; momentum and growth down.'; }
+  else if (vs200 > 2 && ret3m > 1){ k = 'on'; name = 'Risk-on'; desc = 'The market is in an uptrend — momentum and growth carry extra weight.'; }
+  else { k = 'neutral'; name = 'Neutral'; desc = 'Trendless market — balanced weighting across pillars.'; }
+  REGIME = { k, name, desc, vs200, ret3m };
+  return REGIME;
+}
+
+// ---------- stock archetypes (adaptive weighting) ----------
+// A bank, a hypergrowth SaaS, a dividend utility and a turnaround should not
+// be graded on the same rubric. Each archetype reweights the pillars to match
+// what actually decides that kind of investment.
+const ARCHETYPES = {
+  financial:   { name: 'Financial',       w: { sv: .26, sg: .12, sq: .22, sh: .14, sm: .10, edge: .16 },
+                 why: 'Banks and insurers are judged on earnings power, book value and capital returns — EV/EBITDA and current-ratio metrics do not apply.' },
+  turnaround:  { name: 'Turnaround',      w: { sv: .18, sg: .20, sq: .10, sh: .22, sm: .14, edge: .16 },
+                 why: 'Currently unprofitable or shrinking — survival (balance sheet) and the slope of recovery matter more than today’s margins.' },
+  hypergrowth: { name: 'Hypergrowth',     w: { sv: .10, sg: .28, sq: .14, sh: .08, sm: .18, edge: .22 },
+                 why: 'The thesis is the growth curve — earnings multiples mean little yet; expansion, expectations and trend quality carry the weight.' },
+  compounder:  { name: 'Compounder',      w: { sv: .16, sg: .12, sq: .28, sh: .10, sm: .12, edge: .22 },
+                 why: 'A proven high-return business — quality, moat durability and self-funded compounding dominate the thesis.' },
+  dividend:    { name: 'Dividend Anchor', w: { sv: .20, sg: .08, sq: .16, sh: .26, sm: .08, edge: .22 },
+                 why: 'Owned for the income stream — payout safety and balance-sheet strength outweigh growth and momentum.' },
+  deepvalue:   { name: 'Deep Value',      w: { sv: .30, sg: .10, sq: .14, sh: .20, sm: .10, edge: .16 },
+                 why: 'Priced for pessimism — the margin of safety and the strength to survive until the rerating are what count.' },
+  balanced:    { name: 'All-rounder',     w: { sv: .22, sg: .17, sq: .20, sh: .12, sm: .13, edge: .16 },
+                 why: 'No single trait dominates — judged with the standard balanced weighting.' }
+};
+function classifyArchetype(s){
+  if (/financ/i.test(s.sec || '') && s.cr == null) return 'financial';
+  // fast growers first: a loss-making company GROWING 20%+ is a hypergrowth
+  // story, not a turnaround — losses are the model, not the problem
+  if ((s.rg3 ?? 0) >= 18 || ((s.egf ?? 0) >= 25 && (s.rg1 ?? 0) >= 12)) return 'hypergrowth';
+  if ((s.nm ?? 0) < 0 || (s.rg1 ?? 0) < -3) return 'turnaround';
+  if ((s.roic ?? 0) >= 15 && (s.nm ?? 0) >= 8) return 'compounder';
+  if ((s.dy ?? 0) >= 3 || ((s.dy ?? 0) >= 2.2 && (s.beta ?? 1) <= 0.85)) return 'dividend';
+  if ((s.pe != null && s.pe < 13) || (s.pb != null && s.pb < 1.5 && (s.pe ?? 99) < 20)) return 'deepvalue';
+  return 'balanced';
 }
 
 // ---------- master computation ----------
@@ -340,12 +413,32 @@ function computeOne(s, sectorPEHint){
     const sq = scoreQuality(s);
     const sh = scoreHealth(s, z, fscore);
     const sm = scoreMomentum(mo);
-    const edge = computeEdge(s, series, mo);   // the five Emerald Edge signals
-    const score = sv * 0.22 + sg * 0.17 + sq * 0.20 + sh * 0.12 + sm * 0.13 + edge.score * 0.16;
+    const edge = computeEdge(s, series, mo);   // the seven Emerald Edge signals
+
+    // adaptive weighting: archetype rubric × market-regime tilt
+    const regime = marketRegime();
+    const archK = classifyArchetype(s);
+    const arch = ARCHETYPES[archK];
+    const w = { ...arch.w };
+    if (regime.k === 'off'){ w.sm *= 0.70; w.sg *= 0.85; w.sh *= 1.35; w.sq *= 1.10; }
+    else if (regime.k === 'on'){ w.sm *= 1.25; w.sg *= 1.12; w.sh *= 0.85; }
+    const wsum = w.sv + w.sg + w.sq + w.sh + w.sm + w.edge;
+    for (const k in w) w[k] /= wsum;
+    const score = sv * w.sv + sg * w.sg + sq * w.sq + sh * w.sh + sm * w.sm + edge.score * w.edge;
+
+    // conviction: do the pillars agree, and how complete is the data behind them?
+    const parts = [[sv, w.sv], [sg, w.sg], [sq, w.sq], [sh, w.sh], [sm, w.sm], [edge.score, w.edge]];
+    const disp = Math.sqrt(parts.reduce((a, [p, wt]) => a + wt * (p - score) ** 2, 0));
+    const fields = [s.pe, s.ps, s.pb, s.ev, s.roic, s.roe, s.gm, s.om, s.nm, s.de, s.cr, s.ic, s.fcf, s.rg3, s.rg1, s.eg, s.egf, s.dil, s.tp];
+    const coverage = fields.filter(v => v != null).length / fields.length;
+    const conviction = clamp(0.65 * lin(disp, 30, 8) + 0.35 * lin(coverage, 0.45, 0.95), 0, 100);
+    const convLabel = conviction >= 65 ? 'High' : conviction >= 40 ? 'Moderate' : 'Low';
 
     const m = {
       s, series, dates, mo, dcf, dcfP, z, fscore, eps, bvps, graham, fcfYield, edge,
       sv, sg, sq, sh, sm, score,
+      arch: { k: archK, name: arch.name, why: arch.why },
+      weights: w, regime, disp, coverage, conviction, convLabel,
       rating: ratingOf(score),
       hist: finHistory(s, mulberry32(hashStr(s.t + ':hist')))
     };
@@ -369,7 +462,7 @@ function computeOne(s, sectorPEHint){
 }
 
 function computeAll(){
-  MKT = null;          // re-resolve (live vs demo) on every full recompute
+  MKT = null; REGIME = null;   // re-resolve (live vs demo) on every full recompute
   buildEdgeStats();
   const peBySec = {};
   for (const s of STOCKS){ if (s.pe){ (peBySec[s.sec] = peBySec[s.sec] || []).push(s.pe); } }

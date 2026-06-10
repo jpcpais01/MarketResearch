@@ -48,13 +48,12 @@ Both backends share the exact same fetch/mapping code (`api/_lib/yahoo.js`), and
 
 ## How "is this a good investment?" is decided
 
-Each stock gets a **0–100 Emerald Score** from five independently scored pillars:
+Each stock gets a **0–100 Emerald Score** from five classic pillars (Value, Quality, Growth, Health, Momentum) plus the Edge signals — blended **adaptively**, not with fixed weights:
 
-- **Value 26%** — earnings & FCF yield, PEG, EV/EBITDA, P/E vs sector median, discount to DCF fair value
-- **Quality 24%** — gross/operating/net margins, ROE, ROA, ROIC, FCF margin
-- **Growth 20%** — 3-yr & TTM revenue growth, historical & forecast EPS growth, consistency
-- **Health 14%** — debt/equity, current ratio, interest coverage, Altman Z, Piotroski F
-- **Momentum 16%** — price vs 50/200-day SMA, 6-month return, 52-week position, RSI
+- **◈ Archetype-aware** — every stock is classified (Compounder, Hypergrowth, Dividend Anchor, Deep Value, Turnaround, Financial, All-rounder) and judged by the rubric that fits it: a hypergrowth name isn't condemned by P/E, a utility isn't graded on momentum, a bank isn't penalized for missing EV metrics. The archetype and the exact weights used are shown on each stock page.
+- **◉ Regime-aware** — the S&P 500's own trend (vs its 200-day average + 3-month return) sets a risk-on / neutral / risk-off tilt: in stress, health & quality weight up and momentum & growth down; in an uptrend, mildly the reverse.
+- **⚖ Live-calibrated** — ratio inputs (ROIC, margins, yields, growth) are scored as a 50/50 blend of absolute anchors and the stock's percentile in the live 300-stock universe, so "good" adapts to today's actual market.
+- **Conviction-tagged** — every rating carries High/Moderate/Low conviction from pillar agreement × data completeness: a 60 made of all-60s is steadier than a 60 made of 90s and 20s.
 
 Plus standalone models: 10-year two-stage **DCF** (user-adjustable growth/discount/terminal), **Graham number**, **Piotroski F-Score** (9 fundamental-trend checks), **Altman Z-Score** (bankruptcy risk), and a rule-based **flag engine** (fortress balance sheets, golden crosses, stretched payouts, cash burn, value traps…).
 

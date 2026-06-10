@@ -174,7 +174,8 @@ function moverRow(m, withScore = false){
 // ============================================================
 // SCREENER
 // ============================================================
-const SCR = { preset: 'all', sec: 'all', minScore: 0, maxPE: '', minDY: 0, minRG: -99, sort: 'score', dir: -1 };
+const SCR = { preset: 'all', sec: 'all', minScore: 0, maxPE: '', minDY: 0, minRG: -99, sort: 'score', dir: -1,
+              edge: { mdi: 0, xgs: 0, qad: 0, tqs: 0, afs: 0, ces: 0, cfg: 0 } };
 
 function renderScreener(params){
   if (params && params.get('sec')) { SCR.sec = params.get('sec'); SCR.preset = 'all'; }
@@ -197,6 +198,11 @@ function renderScreener(params){
       <div class="field"><label>Min Dividend Yield %</label><input type="number" id="fDY" placeholder="0" step="0.5" value="${SCR.minDY || ''}"></div>
       <div class="field"><label>Min Revenue Growth %</label><input type="number" id="fRG" placeholder="any" value="${SCR.minRG > -99 ? SCR.minRG : ''}"></div>
     </div>
+    <div class="muted small" style="margin:14px 0 8px">✦ <b>Edge signal minimums</b> — drag any signal above 0 to require it; combine several to stack conditions (stocks without that signal are excluded while its filter is active).</div>
+    <div class="filters" id="edgeFilters">
+      ${EDGE_DEFS.map(d => `<div class="field"><label title="${d.q}">${d.ic} ${d.name} · <span id="feV_${d.k}">${SCR.edge[d.k] > 0 ? '≥ ' + SCR.edge[d.k] : 'off'}</span></label>
+        <input type="range" data-ek="${d.k}" min="0" max="90" step="5" value="${SCR.edge[d.k]}"></div>`).join('')}
+    </div>
     <div class="muted small" style="margin-top:12px" id="presetDesc">${PRESETS[SCR.preset].desc}</div>
   </div>
 
@@ -214,6 +220,12 @@ function renderScreener(params){
   $('#fPE').oninput = e => { SCR.maxPE = e.target.value; drawScreenerTable(); };
   $('#fDY').oninput = e => { SCR.minDY = +e.target.value || 0; drawScreenerTable(); };
   $('#fRG').oninput = e => { SCR.minRG = e.target.value === '' ? -99 : +e.target.value; drawScreenerTable(); };
+  $('#edgeFilters').oninput = e => {
+    const ek = e.target.dataset.ek; if (!ek) return;
+    SCR.edge[ek] = +e.target.value;
+    $('#feV_' + ek).textContent = SCR.edge[ek] > 0 ? '≥ ' + SCR.edge[ek] : 'off';
+    drawScreenerTable();
+  };
   drawScreenerTable();
 }
 
@@ -239,6 +251,10 @@ function drawScreenerTable(){
     if (SCR.maxPE !== '' && +SCR.maxPE > 0 && !(m.s.pe != null && m.s.pe <= +SCR.maxPE)) return false;
     if (SCR.minDY > 0 && m.s.dy < SCR.minDY) return false;
     if (SCR.minRG > -99 && (m.s.rg3 ?? -999) < SCR.minRG) return false;
+    for (const k in SCR.edge){
+      const min = SCR.edge[k];
+      if (min > 0 && !(m.edge[k].v != null && m.edge[k].v >= min)) return false;
+    }
     return true;
   });
   const col = SCR_COLS.find(c => c.k === SCR.sort) || SCR_COLS[9];

@@ -118,9 +118,9 @@ function edgeAFS(s, series){
   ]);
   const uwPct = Math.round(uwFrac * 100);
   let read;
-  if (v >= 70) read = `Up-days outweigh down-days (${asym ? asym.toFixed(2) + '×' : '—'}), max 1Y drawdown ${maxDD.toFixed(0)}%, >5% off its high only ${uwPct}% of the year — absorbs shocks and recovers fast.`;
-  else if (v >= 45) read = `Ordinary resilience: ${maxDD.toFixed(0)}% max drawdown, spent ${uwPct}% of the past year more than 5% below its high.`;
-  else read = `Fragile profile — ${maxDD.toFixed(0)}% drawdowns, stuck >5% below its high ${uwPct}% of the year${s.fcf != null && s.fcf < 0 ? ', with no cash buffer to play offense' : ''}.`;
+  if (v >= 70) read = `Up-days outweigh down-days (${asym ? asym.toFixed(2) + '×' : '—'}), max 1Y drawdown ${maxDD.toFixed(0)}%, and it hugged its highs — in a meaningful drawdown (5%+) on just ${uwPct}% of trading days. Absorbs shocks and recovers fast.`;
+  else if (v >= 45) read = `Ordinary resilience: ${maxDD.toFixed(0)}% max drawdown, and it sat in a meaningful drawdown (5%+ below its peak) on ${uwPct}% of trading days this past year.`;
+  else read = `Fragile profile — ${maxDD.toFixed(0)}% drawdowns, stuck in one (5%+ below its peak) on ${uwPct}% of trading days this past year${s.fcf != null && s.fcf < 0 ? ', with no cash buffer to play offense' : ''}.`;
   return { v, read, asym, maxDD, uwFrac };
 }
 

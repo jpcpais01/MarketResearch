@@ -9,7 +9,7 @@ npm install   # first time only
 npm start     # → http://localhost:4173
 ```
 
-On first launch the server pulls the full universe (~90 companies: live quotes, fundamentals, annual income statements, analyst ratings, 2-year price history) — takes about a minute, with a progress bar. After that it's cached on disk and refreshed every 6 hours (click the **● LIVE** badge to force a refresh).
+On first launch the server pulls the full universe (300 companies: live quotes, fundamentals, annual income statements, analyst ratings, 2-year price history) — takes a couple of minutes, with a progress bar. After that it's cached on disk and refreshed every 6 hours (click the **● LIVE** badge to force a refresh).
 
 Chrome/Edge will offer **Install** in the address bar to run it as a standalone app.
 
@@ -60,15 +60,17 @@ Plus standalone models: 10-year two-stage **DCF** (user-adjustable growth/discou
 
 ## The Emerald Edge signals (original methodology)
 
-Five detection methods designed for this app — they answer questions the textbook metrics don't score, and carry 16% of the composite:
+Seven detection methods designed for this app — they answer questions the textbook metrics don't score, and carry 16% of the composite. Two ideas power the suite: **market-relative behavior** (signals measured against the real S&P 500 series, not in isolation) and **cross-sectional rank** (cheap/good are relative statements, scored against the whole live universe):
 
 | Signal | Question it answers | How |
 |---|---|---|
-| **⛨ Moat Durability Index** | Is the excess return defensible? | ROIC spread over estimated cost of capital × persistence evidence (pricing power, growth consistency, scale) |
+| **⛨ Moat Durability Index** | Is the excess return defensible? | ROIC spread over estimated cost of capital × sector-relative ROIC rank × pricing power × how ruler-straight the real multi-year revenue path is (R² of the log-revenue trend) |
 | **⇋ Expectation Gap Score** | What growth is the price *already* paying for? | Runs the DCF **backwards** — solves for market-implied growth, compares to achievable growth. Buy beatable bars, not stories |
-| **⌁ Antifragility Score** | How does it behave under stress? | Up-day/down-day asymmetry, max drawdown, time spent underwater, balance-sheet shock absorbers — from the real price path |
+| **◈ Quality vs Price** | Do you get more than you pay for? | Ranks business quality (ROIC, cash conversion, margins) and price tag (EV/EBITDA, P/E, P/S) against the whole universe and scores the **gap** — top-shelf goods on a mid-shelf tag |
+| **∿ Trend Quality Score** | Is it beating the market persistently — or luckily? | Information ratio vs the S&P 500 over 12 months excluding the noisy last month (classic 12-1 momentum), consistency across rolling quarters, and a penalty for lottery-style gain spikes |
+| **⌁ Antifragility Score** | Does it gain more in rallies than it loses in stress? | Convexity, measured: up-market capture minus down-market capture, behavior on the market's 15 worst days, drawdown depth/duration, balance-sheet shock absorbers |
 | **↻ Compounding Engine Score** | Can it fund its own growth? | Internal compounding rate (ROIC × retention) × cash conversion × operating leverage × **real share-count trend** (buybacks vs dilution) |
-| **⚖ Crowd Friction Gauge** | Who's on the other side of the trade? | Analyst conviction vs short pressure vs insider ownership vs euphoria — rewards loud believers with a lagging price |
+| **⚖ Crowd Friction Gauge** | Who's on the other side of the trade? | Analyst conviction and price targets vs short pressure vs insider ownership vs euphoria — rewards loud believers with a lagging price |
 
 Screen for them with the **Edge Leaders** and **Mispriced Growth** presets.
 
@@ -88,7 +90,7 @@ css/styles.css      glassmorphism design system
 js/live.js          universal loader: auto-detects backend; live → cache → demo
 js/data.js          bundled fallback dataset (used only when offline w/o cache)
 js/analysis.js      scoring engine, DCF, F/Z-scores, flags
-js/edge.js          the five Emerald Edge signals
+js/edge.js          the seven Emerald Edge signals
 js/charts.js        zero-dependency canvas charts (line+SMA, radar, donut, bars, rings)
 js/app.js           hash router, 7 views, search, localStorage state
 ```

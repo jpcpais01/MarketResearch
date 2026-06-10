@@ -268,6 +268,32 @@ function buildVerdict(s, m){
   return txt;
 }
 
+// ---------- shared context for the Edge signals ----------
+let MKT = null;          // market (S&P 500) close series — real in live mode
+function marketSeries(){
+  if (MKT) return MKT;
+  if (typeof LIVE_INDEXES !== 'undefined' && LIVE_INDEXES && LIVE_INDEXES.length){
+    const spx = LIVE_INDEXES.find(ix => ix.t === 'SPX') || LIVE_INDEXES[0];
+    MKT = spx.series;
+  } else {
+    const ix = INDEXES.find(i => i.t === 'SPX') || INDEXES[0];
+    MKT = genSeries(ix.t, ix.px, ix.beta, ix.trend, ix.vol);
+  }
+  return MKT;
+}
+
+let EDGE_STATS = null;   // sorted per-metric arrays → cross-sectional percentile ranks
+function buildEdgeStats(){
+  const grab = f => STOCKS.map(f).filter(v => v != null && isFinite(v)).sort((a, b) => a - b);
+  EDGE_STATS = {
+    roic: grab(s => s.roic), gm: grab(s => s.gm), fcf: grab(s => s.fcf), nm: grab(s => s.nm),
+    ev: grab(s => s.ev), fpe: grab(s => s.fpe ?? s.pe), ps: grab(s => s.ps)
+  };
+  const bySec = {};
+  for (const s of STOCKS){ if (s.roic != null && isFinite(s.roic)) (bySec[s.sec] = bySec[s.sec] || []).push(s.roic); }
+  for (const k in bySec){ if (bySec[k].length >= 6) EDGE_STATS['roic:' + k] = bySec[k].sort((a, b) => a - b); }
+}
+
 // ---------- master computation ----------
 let SECTOR_PE = {};   // sector → median P/E, for relative valuation
 
@@ -330,13 +356,21 @@ function computeOne(s, sectorPEHint){
     if (edge.xgs.v != null && edge.xgs.v <= 16)
       m.flags.red.push(`Expectation trap: price already demands ~${edge.xgs.implied.toFixed(0)}%/yr growth — beyond what fundamentals support`);
     if (edge.mdi.v >= 78) m.flags.green.push('Wide-moat profile: returns far above the cost of capital with strong pricing power');
-    if (edge.afs.v <= 35) m.flags.red.push('Fragile under stress: deep drawdowns, slow recoveries, weak shock absorbers');
+    if (edge.qad.v != null && edge.qad.v >= 80)
+      m.flags.green.push(`Quality at a discount: business quality ranks far above its price tag in the universe`);
+    if (edge.tqs.v != null && edge.tqs.v >= 80)
+      m.flags.green.push('High-grade trend: consistent market outperformance, not lottery-style spikes');
+    if (edge.afs.v <= 30) m.flags.red.push('Concave under stress: soaks up market sell-offs but lags the rallies');
+    if (edge.qad.v != null && edge.qad.v <= 15)
+      m.flags.red.push('Premium price for non-premium quality — the valuation assumes a better business than the numbers show');
     m.verdict = buildVerdict(s, m);
     return m;
   }
 }
 
 function computeAll(){
+  MKT = null;          // re-resolve (live vs demo) on every full recompute
+  buildEdgeStats();
   const peBySec = {};
   for (const s of STOCKS){ if (s.pe){ (peBySec[s.sec] = peBySec[s.sec] || []).push(s.pe); } }
   SECTOR_PE = {};

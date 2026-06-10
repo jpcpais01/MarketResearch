@@ -332,7 +332,7 @@ function renderStock(t){
   </div>
 
   <div class="card mb">
-    <div class="card-title">Emerald Edge — five proprietary signals
+    <div class="card-title">Emerald Edge — seven proprietary signals
       <b style="color:${scoreColor(m.edge.score)}">${Math.round(m.edge.score)}</b>
     </div>
     <div class="edge-grid">
@@ -349,7 +349,7 @@ function renderStock(t){
         </div>`;
       }).join('')}
     </div>
-    <div class="muted-block">These five signals are Emerald's own methodology — see the Academy for how each works. They carry 16% of the composite score.</div>
+    <div class="muted-block">These seven signals are Emerald's own methodology — market-relative and ranked against the live universe, not fixed thresholds. See the Academy for how each works. They carry 16% of the composite score.</div>
   </div>
 
   <div class="card mb">
@@ -558,6 +558,8 @@ const CMP_ROWS = [
   { l: '1Y return', get: m => m.mo.ret1y, fmt: v => F.pct(v, true), best: 'max' },
   { l: '✦ Moat Durability', get: m => m.edge.mdi.v, fmt: v => Math.round(v), best: 'max' },
   { l: '✦ Expectation Gap', get: m => m.edge.xgs.v, fmt: v => Math.round(v), best: 'max' },
+  { l: '✦ Quality vs Price', get: m => m.edge.qad.v, fmt: v => Math.round(v), best: 'max' },
+  { l: '✦ Trend Quality', get: m => m.edge.tqs.v, fmt: v => Math.round(v), best: 'max' },
   { l: '✦ Antifragility', get: m => m.edge.afs.v, fmt: v => Math.round(v), best: 'max' },
   { l: '✦ Compounding Engine', get: m => m.edge.ces.v, fmt: v => Math.round(v), best: 'max' },
   { l: '✦ Crowd Friction', get: m => m.edge.cfg.v, fmt: v => Math.round(v), best: 'max' },
@@ -782,14 +784,16 @@ function renderAcademy(){
         <li><b>Health (14%)</b> — leverage, liquidity, interest coverage, Altman Z and Piotroski F. Balance-sheet risk is what turns drawdowns into permanent losses.</li>
       </ul>
       <p><b>78+ = Strong Buy</b>, 64+ = Buy, 50+ = Hold, 36+ = Underperform, below = Avoid. The score is a research filter, not an oracle — always read the flags and form your own thesis.</p>`],
-    ['✦', 'The Emerald Edge signals — our own five methods', `
-      <p>The classic pillars use well-known finance. The <b>Edge signals are Emerald's own methodology</b>, designed to answer questions the textbooks don't score directly. Together they carry 16% of the composite.</p>
+    ['✦', 'The Emerald Edge signals — our own seven methods', `
+      <p>The classic pillars use well-known finance. The <b>Edge signals are Emerald's own methodology</b>, built on two ideas most retail tools skip: a stock's behavior only means something <i>relative to the market</i>, and cheap/expensive only means something <i>relative to every other stock you could buy instead</i>. Together they carry 16% of the composite.</p>
       <ul>
-        <li><b>⛨ Moat Durability Index</b> — high returns attract competition; the question is whether they <i>persist</i>. We measure the spread of ROIC over an estimated cost of capital, then weigh the evidence that the spread is defensible: gross-margin pricing power, growth consistency (steady businesses defend better than spiky ones), operating discipline, and scale.</li>
-        <li><b>⇋ Expectation Gap Score</b> — instead of guessing fair value, we run the DCF <i>backwards</i>: solve for the growth rate the current price already implies, then compare with what the company can plausibly deliver (forecast + historical growth). You make money when reality beats the bar the price has set — so buy low bars, not good stories. This is the single most decision-relevant signal in the set.</li>
-        <li><b>⌁ Antifragility Score</b> — two stocks with the same return can have wildly different journeys. We measure behavior under stress from the actual price path: do average up-days outweigh down-days, how deep was the worst drawdown, what fraction of the year was spent underwater — plus the balance-sheet shock absorbers (cash generation, low leverage) that let a company play offense in a crisis.</li>
-        <li><b>↻ Compounding Engine Score</b> — growth is only valuable if it funds itself. We estimate the internal compounding rate (ROIC × earnings retained), check how much of reported profit converts to actual cash, and whether profits grow faster than revenue (operating leverage). Companies that fail this test must borrow or dilute you to grow.</li>
-        <li><b>⚖ Crowd Friction Gauge</b> — every trade has a counterparty. We cross-reference analyst conviction, short-seller pressure, insider ownership and momentum euphoria. The best setups are where informed believers are loud but the price hasn't moved yet; the worst are crowded euphoria with heavy short interest on the other side.</li>
+        <li><b>⛨ Moat Durability Index</b> — high returns attract competition; the question is whether they <i>persist</i>. We measure the spread of ROIC over an estimated cost of capital, rank that return against the company's own sector peers, and weigh the evidence the spread is defensible: gross-margin pricing power, and how ruler-straight the real multi-year revenue path has been (steady compounding is moat evidence; spiky growth is not).</li>
+        <li><b>⇋ Expectation Gap Score</b> — instead of guessing fair value, we run the DCF <i>backwards</i>: solve for the growth rate the current price already implies, then compare with what the company can plausibly deliver (forecast + historical growth). You make money when reality beats the bar the price has set — so buy low bars, not good stories.</li>
+        <li><b>◈ Quality vs Price</b> — every stock gets two ranks against the whole live universe: business quality (ROIC, cash generation, margins) and price tag (EV/EBITDA, P/E, P/S). The signal scores the <i>gap</i>. Top-shelf goods on a mid-shelf tag is the setup that outperforms; a premium price on a mid-shelf business is how good companies become bad investments.</li>
+        <li><b>∿ Trend Quality Score</b> — not <i>whether</i> it beat the market but <i>how</i>. We compute the information ratio against the S&amp;P 500 over the past year (excluding the noisy last month — the classic momentum refinement), the share of rolling quarters it was ahead, and penalize lottery-style profiles whose gains arrive in a few huge spikes — smooth outperformance tends to persist; spiky outperformance tends to revert.</li>
+        <li><b>⌁ Antifragility Score</b> — convexity, measured: how much of the market's rallies does the stock capture versus how much of the sell-offs does it absorb? A stock that takes 90% of the upside but only 60% of the downside compounds wealth through whole cycles. We also check behavior on the market's 15 worst days, drawdown depth and duration, and the balance-sheet buffers that let a company play offense in a crisis.</li>
+        <li><b>↻ Compounding Engine Score</b> — growth is only valuable if it funds itself. We estimate the internal compounding rate (ROIC × earnings retained), check how much of reported profit converts to actual cash, and whether profits grow faster than revenue. Companies that fail this test must borrow or dilute you to grow.</li>
+        <li><b>⚖ Crowd Friction Gauge</b> — every trade has a counterparty. We cross-reference analyst conviction and price targets, short-seller pressure, insider ownership and momentum euphoria. The best setups are where informed believers are loud but the price hasn't moved yet; the worst are crowded euphoria with heavy short interest on the other side.</li>
       </ul>
       <p>Each signal is 0–100 and shown with a plain-English reading on every stock page. Screen for them with the <b>Edge Leaders</b> and <b>Mispriced Growth</b> presets.</p>`],
     ['▲', 'DCF: what a business is actually worth', `

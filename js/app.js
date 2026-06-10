@@ -174,11 +174,13 @@ function moverRow(m, withScore = false){
 // ============================================================
 // PRICE ACTION LAB
 // ============================================================
-const PA = { t: null, idx: 'SPX', win: 252, sort: 'gor', dir: -1 };
+const PA = { t: null, idx: 'SPX', win: 252, sort: 'gor', dir: -1, cap: 'All' };
 const PA_WINS = [['1M', 21], ['2M', 42], ['3M', 63], ['6M', 126], ['1Y', 252], ['2Y', 504]];
 const PA_IDX = [['SPX', 'S&P 500'], ['NDX', 'Nasdaq'], ['DJI', 'Dow']];
+const PA_CAPS = [['All', null], ['<5B', [0, 5]], ['5–20B', [5, 20]], ['20–50B', [20, 50]], ['50–200B', [50, 200]], ['>200B', [200, Infinity]]];
 const PA_COLS = [
   { k: 't',     l: 'Company', dir: 1, get: r => r.t },
+  { k: 'mc',    l: 'Mkt cap', get: r => r.mc ?? -1 },
   { k: 'gor',   l: 'Up on index-down days', get: r => r.gor },
   { k: 'rog',   l: 'Down on index-up days', get: r => r.rog },
   { k: 'avgUp', l: 'Avg up day', get: r => r.avgUp ?? -999 },
@@ -224,15 +226,18 @@ function renderAction(t){
     PA._board = RANKED.map(x => {
       const p = priceActionStats(x.series, idx.series, PA.win);
       return (p && p.mktDown.days >= 5 && p.mktDown.rate != null)
-        ? { t: x.s.t, n: x.s.n, gor: p.mktDown.rate, rog: p.mktUp.rateDn ?? 0, avgUp: p.avgUp, avgDn: p.avgDn, beat: p.beat, ret: p.ret }
+        ? { t: x.s.t, n: x.s.n, mc: x.s.mc, gor: p.mktDown.rate, rog: p.mktUp.rateDn ?? 0, avgUp: p.avgUp, avgDn: p.avgDn, beat: p.beat, ret: p.ret }
         : null;
     }).filter(Boolean);
     PA._boardKey = boardKey;
   }
   const board = PA._board;
   const gorRank = board.slice().sort((a, b) => b.gor - a.gor).findIndex(r => r.t === PA.t) + 1;
-  const sortCol = PA_COLS.find(c => c.k === PA.sort) || PA_COLS[1];
-  const sorted = board.slice().sort((a, b) => (sortCol.get(a) > sortCol.get(b) ? 1 : -1) * PA.dir);
+  const capRange = (PA_CAPS.find(c => c[0] === PA.cap) || PA_CAPS[0])[1];
+  const sortCol = PA_COLS.find(c => c.k === PA.sort) || PA_COLS[2];
+  const sorted = board
+    .filter(r => !capRange || (r.mc != null && r.mc >= capRange[0] && r.mc < capRange[1]))
+    .sort((a, b) => (sortCol.get(a) > sortCol.get(b) ? 1 : -1) * PA.dir);
 
   view().innerHTML = `
   <h1 class="page">Price Action Lab</h1>
@@ -336,8 +341,9 @@ function renderAction(t){
 
   <div class="card mb">
     <div class="card-title">Down-day champions — whole universe, this window
-      <span class="muted small">${board.length} stocks vs ${idx.name} · ${PA.t} ranks #${gorRank || '—'} on down-day wins · click any column to sort</span>
+      <span class="muted small">${sorted.length}${capRange ? ' of ' + board.length : ''} stocks vs ${idx.name} · ${PA.t} ranks #${gorRank || '—'} on down-day wins · click any column to sort</span>
     </div>
+    <div class="chips mb" id="paCap">${PA_CAPS.map(([l]) => `<span class="chip ${PA.cap === l ? 'active' : ''}" data-c="${l}">${l === 'All' ? 'All caps' : l}</span>`).join('')}</div>
     <div class="tbl-wrap" style="max-height:64vh" id="paBoard">
       <table class="tbl">
         <thead><tr><th>#</th>${PA_COLS.map(c => `<th data-k="${c.k}" class="${PA.sort === c.k ? 'sorted' : ''}" style="cursor:pointer">${c.l}${PA.sort === c.k ? (PA.dir < 0 ? ' ↓' : ' ↑') : ''}</th>`).join('')}</tr></thead>
@@ -345,6 +351,7 @@ function renderAction(t){
           <tr onclick="App.go('action/${r.t}')" ${r.t === PA.t ? 'style="background:rgba(52,211,153,.08)"' : ''}>
             <td class="num muted">${i + 1}</td>
             <td><span class="tk">${r.t}</span><div class="co">${r.n}</div></td>
+            <td class="num">${r.mc != null ? F.big(r.mc) : '—'}</td>
             <td><b style="color:${r.gor >= 50 ? '#34d399' : r.gor >= 38 ? '#fbbf24' : '#f87171'}">${r.gor.toFixed(0)}%</b></td>
             <td><b style="color:${r.rog <= 30 ? '#34d399' : r.rog <= 42 ? '#fbbf24' : '#f87171'}">${r.rog.toFixed(0)}%</b></td>
             <td style="color:#34d399">+${(r.avgUp ?? 0).toFixed(2)}%</td>
@@ -381,6 +388,7 @@ function renderAction(t){
   res.onmousedown = e => { const it = e.target.closest('.sr-item'); if (it) App.go('action/' + it.dataset.t); };
   $('#paIdx').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; PA.idx = c.dataset.i; renderAction(); };
   $('#paWin').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; PA.win = +c.dataset.w; renderAction(); };
+  $('#paCap').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; PA.cap = c.dataset.c; renderAction(); };
   $('#paBoard thead').onclick = e => {
     const th = e.target.closest('th'); if (!th || !th.dataset.k) return;
     e.stopPropagation();

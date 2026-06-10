@@ -1,5 +1,5 @@
 /* ============================================================
-   Emerald · EDGE — seven original detection signals
+   Emerald · EDGE — eight original detection signals
    These are Emerald's own methods, designed for this app —
    not textbook formulas. Each answers a question the classic
    pillars don't ask, scores 0–100, and is null-safe.
@@ -45,12 +45,20 @@
         days, drawdown depth/duration, and the balance-sheet
         buffers that let it play offense in a crisis.
 
-   6. CES — Compounding Engine Score
+   6. PAS — Price Action Score
+        Market-day independence, counted not assumed: on the
+        days the S&P 500 actually fell, how often did THIS
+        stock close green? Plus rally participation, the daily
+        beat rate, and whether buyers return the day after the
+        market's worst sessions. Explored in depth on the
+        dedicated Price Action page.
+
+   7. CES — Compounding Engine Score
         Can the business fund its own growth? Internal compound
         rate (ROIC × retained earnings) × how much of reported
         profit is actually cash × operating leverage.
 
-   7. CFG — Crowd Friction Gauge
+   8. CFG — Crowd Friction Gauge
         Who is on the other side of your trade? Analyst
         conviction and price targets vs short-seller pressure,
         insider skin in the game, crowd euphoria — and the rare
@@ -268,7 +276,27 @@ function edgeAFS(s, series){
   return { v, read, upCap, downCap, cvx, tailCap, maxDD, uwFrac };
 }
 
-/* ---------- 6. Compounding Engine Score ---------- */
+/* ---------- 6. Price Action Score (market-day independence) ---------- */
+function edgePAS(s, series){
+  const pa = priceActionStats(series, marketSeries(), 252);
+  if (!pa || pa.mktDown.days < 25 || pa.mktDown.rate == null)
+    return { v: null, read: 'Not enough market-day overlap to judge independent price action.', rate: null };
+  const v = wavg([
+    [lin(pa.mktDown.rate, 26, 58), 4],            // rises when the market falls — the core ask
+    [lin(pa.mktUp.rateDn, 54, 26), 2],            // doesn't skip rallies
+    [lin(pa.beat, 42, 56), 2],                    // daily edge over the tape
+    [pa.worstDays && pa.worstDays.bounce != null ? lin(pa.worstDays.bounce, -0.5, 1.5) : null, 2]  // bid returns after the market's worst days
+  ]);
+  const rate = pa.mktDown.rate;
+  let read;
+  if (v >= 65) read = `Marches to its own drum: rose on ${pa.mktDown.stockUp} of the market’s ${pa.mktDown.days} down days (${rate.toFixed(0)}%) and beats the tape on ${pa.beat.toFixed(0)}% of all days — buyers show up even when the market sells.`;
+  else if (rate >= 55) read = `Defensive bid: up on ${rate.toFixed(0)}% of market down days, but it gives ground elsewhere${pa.mktUp.rateDn > 40 ? ` — red on ${pa.mktUp.rateDn.toFixed(0)}% of the market’s up days` : ''}.`;
+  else if (v >= 45) read = `Typical coupling: up on ${rate.toFixed(0)}% of market down days, beats the tape ${pa.beat.toFixed(0)}% of days — direction is mostly set by the market.`;
+  else read = `No independent bid — rose on just ${rate.toFixed(0)}% of the market’s down days${pa.mktUp.rateDn > 42 ? ' and still missed ' + pa.mktUp.rateDn.toFixed(0) + '% of its up days' : ''}; it needs the tape to carry it.`;
+  return { v, read, rate, beat: pa.beat };
+}
+
+/* ---------- 7. Compounding Engine Score ---------- */
 function edgeCES(s){
   const retention = s.po != null ? clamp(1 - s.po / 100, 0, 1) : 1;
   const icr = s.roic != null ? Math.max(0, s.roic) * retention : null;       // internal compounding rate
@@ -290,7 +318,7 @@ function edgeCES(s){
   return { v, read, icr, conv };
 }
 
-/* ---------- 7. Crowd Friction Gauge ---------- */
+/* ---------- 8. Crowd Friction Gauge ---------- */
 function edgeCFG(s, mo){
   const tot = s.ar ? s.ar[0] + s.ar[1] + s.ar[2] : 0;
   const conv = tot >= 5 ? s.ar[0] / tot * 100 : null;
@@ -320,6 +348,7 @@ const EDGE_DEFS = [
   { k: 'qad', name: 'Quality vs Price',   ic: '◈', q: 'Do you get more than you pay for?' },
   { k: 'tqs', name: 'Trend Quality',      ic: '∿', q: 'Is it beating the market persistently — or luckily?' },
   { k: 'afs', name: 'Antifragility',      ic: '⌁', q: 'Does it gain more in rallies than it loses in stress?' },
+  { k: 'pas', name: 'Price Action',       ic: '⇅', q: 'Can it rise when the market falls?' },
   { k: 'ces', name: 'Compounding Engine', ic: '↻', q: 'Can it fund its own growth?' },
   { k: 'cfg', name: 'Crowd Friction',     ic: '⚖', q: 'Who is on the other side of the trade?' }
 ];
@@ -331,6 +360,7 @@ function computeEdge(s, series, mo){
     qad: edgeQAD(s),
     tqs: edgeTQS(s, series),
     afs: edgeAFS(s, series),
+    pas: edgePAS(s, series),
     ces: edgeCES(s),
     cfg: edgeCFG(s, mo)
   };

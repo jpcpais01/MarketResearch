@@ -287,6 +287,102 @@ function marketSeries(){
   return MKT;
 }
 
+function indexSeries(t){  // any tracked index ('SPX' | 'NDX' | 'DJI'), live or synthetic
+  if (typeof LIVE_INDEXES !== 'undefined' && LIVE_INDEXES && LIVE_INDEXES.length){
+    const ix = LIVE_INDEXES.find(i => i.t === t) || LIVE_INDEXES[0];
+    return { series: ix.series, dates: ix.dates, name: ix.n };
+  }
+  const def = INDEXES.find(i => i.t === t) || INDEXES[0];
+  return { series: genSeries(def.t, def.px, def.beta, def.trend, def.vol), dates: SERIES_DATES, name: def.n };
+}
+
+/* ---------- price-action analytics ----------
+   Day-by-day behavior of a stock vs a market index over the last `days`
+   trading days. Powers both the PAS Edge signal and the Price Action page. */
+function priceActionStats(series, mkt, days, dates){
+  const k = Math.min(series.length, mkt.length) - 1;
+  const n = Math.min(days, k);
+  if (n < 15) return null;
+  const so = series.length - n - 1, mo = mkt.length - n - 1;
+  const sr = new Array(n), mr = new Array(n);
+  for (let i = 1; i <= n; i++){
+    sr[i - 1] = series[so + i] / series[so + i - 1] - 1;
+    mr[i - 1] = mkt[mo + i] / mkt[mo + i - 1] - 1;
+  }
+  const dateAt = i => dates ? dates[series.length - n + i] : null;
+
+  // ---- the four market-day quadrants ----
+  let mDn = 0, upOnDn = 0, sumS_dn = 0, sumM_dn = 0;
+  let mUp = 0, dnOnUp = 0, sumS_up = 0, sumM_up = 0;
+  let beat = 0;
+  for (let i = 0; i < n; i++){
+    if (mr[i] < 0){ mDn++; sumS_dn += sr[i]; sumM_dn += mr[i]; if (sr[i] > 0) upOnDn++; }
+    else if (mr[i] > 0){ mUp++; sumS_up += sr[i]; sumM_up += mr[i]; if (sr[i] < 0) dnOnUp++; }
+    if (sr[i] > mr[i]) beat++;
+  }
+
+  // ---- own-move profile ----
+  let up = 0, dn = 0, sumUp = 0, sumDn = 0, bi = 0, wi = 0;
+  let stk = 0, maxUpStk = 0, maxDnStk = 0;
+  for (let i = 0; i < n; i++){
+    if (sr[i] > 0){ up++; sumUp += sr[i]; stk = stk > 0 ? stk + 1 : 1; if (stk > maxUpStk) maxUpStk = stk; }
+    else if (sr[i] < 0){ dn++; sumDn += sr[i]; stk = stk < 0 ? stk - 1 : -1; if (-stk > maxDnStk) maxDnStk = -stk; }
+    if (sr[i] > sr[bi]) bi = i;
+    if (sr[i] < sr[wi]) wi = i;
+  }
+  const vol = Math.sqrt(sr.reduce((a, b) => a + b * b, 0) / n) * Math.sqrt(252) * 100;
+
+  // ---- co-movement ----
+  const ms = sr.reduce((a, b) => a + b, 0) / n, mm = mr.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++){ sxy += (sr[i] - ms) * (mr[i] - mm); sxx += (mr[i] - mm) ** 2; syy += (sr[i] - ms) ** 2; }
+  const beta = sxx ? sxy / sxx : null;
+  const corr = (sxx && syy) ? sxy / Math.sqrt(sxx * syy) : null;
+
+  // ---- the market's extreme days within the window ----
+  const order = mr.map((v, i) => i).sort((a, b) => mr[a] - mr[b]);
+  const ext = Math.min(10, Math.floor(n / 8));
+  const tail = idxs => {
+    let s = 0, m = 0, w = 0, bn = 0, bs = 0;
+    for (const i of idxs){ s += sr[i]; m += mr[i]; if (sr[i] > mr[i]) w++; if (i + 1 < n){ bs += sr[i + 1]; bn++; } }
+    return { n: idxs.length, avgStock: s / idxs.length * 100, avgMkt: m / idxs.length * 100, wins: w, bounce: bn ? bs / bn * 100 : null };
+  };
+  const worstDays = ext ? tail(order.slice(0, ext)) : null;
+  const bestDays  = ext ? tail(order.slice(-ext).reverse()) : null;
+
+  // ---- strength histogram of daily moves ----
+  const bucket = r => r < -3 ? 0 : r < -2 ? 1 : r < -1 ? 2 : r < 0 ? 3 : r === 0 ? 3 : r <= 1 ? 4 : r <= 2 ? 5 : r <= 3 ? 6 : 7;
+  const hist = { labels: ['≤-3%', '-3…-2', '-2…-1', '-1…0', '0…1', '1…2', '2…3', '≥3%'], counts: new Array(8).fill(0) };
+  for (const r of sr) hist.counts[bucket(r * 100)]++;
+
+  // ---- monthly battle blocks (21-day rounds, most recent last) ----
+  const blocks = [];
+  for (let e = n; e - 21 >= 0 && blocks.length < 12; e -= 21){
+    let sAcc = 1, mAcc = 1;
+    for (let i = e - 21; i < e; i++){ sAcc *= 1 + sr[i]; mAcc *= 1 + mr[i]; }
+    blocks.unshift({ label: dateAt(e - 1) ? dateAt(e - 1).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `−${Math.round((n - e) / 21)}m`,
+                     sRet: (sAcc - 1) * 100, mRet: (mAcc - 1) * 100 });
+  }
+
+  return {
+    n,
+    ret: (series[series.length - 1] / series[series.length - 1 - n] - 1) * 100,
+    mret: (mkt[mkt.length - 1] / mkt[mkt.length - 1 - n] - 1) * 100,
+    beat: beat / n * 100, beta, corr, vol,
+    mktDown: { days: mDn, stockUp: upOnDn, rate: mDn ? upOnDn / mDn * 100 : null,
+               avgStock: mDn ? sumS_dn / mDn * 100 : null, avgMkt: mDn ? sumM_dn / mDn * 100 : null },
+    mktUp:   { days: mUp, stockDn: dnOnUp, rateDn: mUp ? dnOnUp / mUp * 100 : null,
+               avgStock: mUp ? sumS_up / mUp * 100 : null, avgMkt: mUp ? sumM_up / mUp * 100 : null },
+    upCap: sumM_up ? sumS_up / sumM_up : null,
+    dnCap: sumM_dn ? sumS_dn / sumM_dn : null,
+    upDays: up, dnDays: dn,
+    avgUp: up ? sumUp / up * 100 : null, avgDn: dn ? sumDn / dn * 100 : null,
+    best: { r: sr[bi] * 100, date: dateAt(bi) }, worst: { r: sr[wi] * 100, date: dateAt(wi) },
+    maxUpStk, maxDnStk, curStreak: stk,
+    worstDays, bestDays, hist, blocks
+  };
+}
+
 let EDGE_STATS = null;   // sorted per-metric arrays → cross-sectional percentile ranks
 function buildEdgeStats(){
   const grab = f => STOCKS.map(f).filter(v => v != null && isFinite(v)).sort((a, b) => a - b);
@@ -453,6 +549,8 @@ function computeOne(s, sectorPEHint){
       m.flags.green.push(`Quality at a discount: business quality ranks far above its price tag in the universe`);
     if (edge.tqs.v != null && edge.tqs.v >= 80)
       m.flags.green.push('High-grade trend: consistent market outperformance, not lottery-style spikes');
+    if (edge.pas.v != null && edge.pas.v >= 68 && edge.pas.rate >= 52)
+      m.flags.green.push(`Independent price action: closed green on ${Math.round(edge.pas.rate)}% of the market's down days this year`);
     if (edge.afs.v <= 30) m.flags.red.push('Concave under stress: soaks up market sell-offs but lags the rallies');
     if (edge.qad.v != null && edge.qad.v <= 15)
       m.flags.red.push('Premium price for non-premium quality — the valuation assumes a better business than the numbers show');

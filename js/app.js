@@ -172,6 +172,187 @@ function moverRow(m, withScore = false){
 }
 
 // ============================================================
+// PRICE ACTION LAB
+// ============================================================
+const PA = { t: null, idx: 'SPX', win: 252 };
+const PA_WINS = [['1M', 21], ['2M', 42], ['3M', 63], ['6M', 126], ['1Y', 252], ['2Y', 504]];
+const PA_IDX = [['SPX', 'S&P 500'], ['NDX', 'Nasdaq 100'], ['DJI', 'Dow Jones']];
+
+function renderAction(t){
+  if (t) PA.t = decodeURIComponent(t).toUpperCase();
+  if (PA.t && !METRICS.has(PA.t) && DATA_MODE !== 'demo'){
+    const want = PA.t;
+    view().innerHTML = `<div class="empty-state card"><div class="ei">◌</div><b>Loading ${escHTML(want)}…</b><p>Fetching price history for the Price Action Lab.</p></div>`;
+    App.loadTicker(want).then(ok => {
+      if (!location.hash.includes('/action')) return;
+      if (!ok){ PA.t = RANKED[0].s.t; toast(`Couldn't load ${want} — showing ${PA.t}`); }
+      renderAction();
+    });
+    return;
+  }
+  if (!PA.t || !METRICS.has(PA.t)) PA.t = RANKED[0].s.t;
+  const m = METRICS.get(PA.t);
+  const idx = indexSeries(PA.idx);
+  const pa = priceActionStats(m.series, idx.series, PA.win, m.dates);
+  const winLabel = (PA_WINS.find(w => w[1] === PA.win) || ['1Y'])[0];
+  if (!pa){
+    view().innerHTML = `<div class="empty-state card"><div class="ei">∅</div><b>Not enough overlapping history for ${escHTML(PA.t)}</b></div>`;
+    return;
+  }
+  const mUpUp = pa.mktUp.days - pa.mktUp.stockDn;     // market up & stock up
+  const mDnDn = pa.mktDown.days - pa.mktDown.stockUp; // market down & stock down
+  const alpha = pa.ret - pa.mret;
+  const pasSig = m.edge.pas;
+  const qcell = (title, days, total, avg, good) => `
+    <div class="glass" style="padding:14px;border-radius:14px;background:${good ? 'rgba(52,211,153,.10)' : 'rgba(248,113,113,.09)'}">
+      <div class="small muted" style="margin-bottom:6px">${title}</div>
+      <div style="font-size:21px;font-weight:800" class="num">${days} <span class="small muted" style="font-weight:600">of ${total} days (${total ? Math.round(days / total * 100) : 0}%)</span></div>
+      <div class="small" style="margin-top:4px">avg move ${F.chg(avg, 2)}</div>
+    </div>`;
+  const streakTxt = pa.curStreak > 0 ? `${pa.curStreak} day${pa.curStreak > 1 ? 's' : ''} up` : pa.curStreak < 0 ? `${-pa.curStreak} day${pa.curStreak < -1 ? 's' : ''} down` : 'flat';
+
+  // universe leaderboard for this window + benchmark
+  const board = RANKED.map(x => {
+    const p = priceActionStats(x.series, idx.series, PA.win);
+    return (p && p.mktDown.days >= 5 && p.mktDown.rate != null) ? { t: x.s.t, n: x.s.n, rate: p.mktDown.rate, beat: p.beat, ret: p.ret } : null;
+  }).filter(Boolean).sort((a, b) => b.rate - a.rate);
+  const myRank = board.findIndex(r => r.t === PA.t) + 1;
+  const boardRow = (r, i) => `
+    <tr onclick="App.go('action/${r.t}')" ${r.t === PA.t ? 'style="background:rgba(52,211,153,.08)"' : ''}>
+      <td class="num muted">${i + 1}</td>
+      <td><span class="tk">${r.t}</span><div class="co">${r.n}</div></td>
+      <td><b style="color:${r.rate >= 50 ? '#34d399' : r.rate >= 38 ? '#fbbf24' : '#f87171'}">${r.rate.toFixed(0)}%</b></td>
+      <td>${r.beat.toFixed(0)}%</td>
+      <td>${F.chg(r.ret, 1)}</td>
+    </tr>`;
+
+  view().innerHTML = `
+  <h1 class="page">Price Action Lab</h1>
+  <div class="page-sub">Day-by-day behavior vs the market — who actually holds the bid when the index sells off.</div>
+
+  <div class="card mb tight">
+    <div class="filters" style="grid-template-columns:minmax(170px,1fr) auto auto;align-items:end">
+      <div class="field"><label>Stock</label>
+        <input id="paStock" list="paList" value="${PA.t}" placeholder="Type a ticker…" autocomplete="off" spellcheck="false">
+        <datalist id="paList">${RANKED.map(x => `<option value="${x.s.t}">${x.s.n}</option>`).join('')}</datalist>
+      </div>
+      <div class="field"><label>Benchmark</label>
+        <div class="chips" id="paIdx">${PA_IDX.map(([k, n]) => `<span class="chip ${PA.idx === k ? 'active' : ''}" data-i="${k}" title="${n}">${k}</span>`).join('')}</div>
+      </div>
+      <div class="field"><label>Window</label>
+        <div class="chips" id="paWin">${PA_WINS.map(([l, d]) => `<span class="chip ${PA.win === d ? 'active' : ''}" data-w="${d}">${l}</span>`).join('')}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb">
+    <div class="card-title">${m.s.n} (${PA.t}) vs ${idx.name} — last ${winLabel} · ${pa.n} trading days
+      <span><b style="color:${pa.ret >= 0 ? '#34d399' : '#f87171'}">${pa.ret >= 0 ? '+' : ''}${pa.ret.toFixed(1)}%</b> <span class="muted small">vs index ${pa.mret >= 0 ? '+' : ''}${pa.mret.toFixed(1)}%</span></span>
+    </div>
+    <div class="chart-stats">
+      <div>Up on the market's down days<b style="color:${pa.mktDown.rate >= 50 ? '#34d399' : pa.mktDown.rate >= 38 ? '#fbbf24' : '#f87171'}">${pa.mktDown.stockUp} of ${pa.mktDown.days} (${pa.mktDown.rate.toFixed(0)}%)</b></div>
+      <div>Red on the market's up days<b style="color:${pa.mktUp.rateDn <= 30 ? '#34d399' : pa.mktUp.rateDn <= 42 ? '#fbbf24' : '#f87171'}">${pa.mktUp.stockDn} of ${pa.mktUp.days} (${pa.mktUp.rateDn.toFixed(0)}%)</b></div>
+      <div>Days beating the index<b class="num">${pa.beat.toFixed(0)}%</b></div>
+      <div>Alpha over window<b style="color:${alpha >= 0 ? '#34d399' : '#f87171'}">${alpha >= 0 ? '+' : ''}${alpha.toFixed(1)}%</b></div>
+    </div>
+    <div class="muted-block" style="margin-top:12px">⇅ <b>Price Action signal (1Y): ${pasSig.v == null ? '—' : Math.round(pasSig.v) + '/100'}</b> — ${pasSig.read}</div>
+  </div>
+
+  <div class="grid g2 mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px">
+    <div class="card" style="margin:0">
+      <div class="card-title">The four kinds of day — who led whom</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${qcell(`▼ Index down · ${PA.t} UP`, pa.mktDown.stockUp, pa.mktDown.days, pa.mktDown.avgStock, true)}
+        ${qcell(`▼ Index down · ${PA.t} down`, mDnDn, pa.mktDown.days, pa.mktDown.avgMkt, false)}
+        ${qcell(`▲ Index up · ${PA.t} up`, mUpUp, pa.mktUp.days, pa.mktUp.avgStock, true)}
+        ${qcell(`▲ Index up · ${PA.t} DOWN`, pa.mktUp.stockDn, pa.mktUp.days, pa.mktUp.avgMkt, false)}
+      </div>
+      <div class="muted small" style="margin-top:10px">Avg ${PA.t} move on index-down days: <b>${F.chg(pa.mktDown.avgStock, 2)}</b> (index ${F.chg(pa.mktDown.avgMkt, 2)}) · on index-up days: <b>${F.chg(pa.mktUp.avgStock, 2)}</b> (index ${F.chg(pa.mktUp.avgMkt, 2)})</div>
+    </div>
+    <div class="card" style="margin:0">
+      <div class="card-title">Strength of daily changes</div>
+      <canvas id="paHist"></canvas>
+      <div class="chart-stats" style="margin-top:10px">
+        <div>Avg up day / down day<b><span style="color:#34d399">+${(pa.avgUp ?? 0).toFixed(2)}%</span> / <span style="color:#f87171">${(pa.avgDn ?? 0).toFixed(2)}%</span></b></div>
+        <div>Best day<b style="color:#34d399">+${pa.best.r.toFixed(1)}%${pa.best.date ? ' · ' + pa.best.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</b></div>
+        <div>Worst day<b style="color:#f87171">${pa.worst.r.toFixed(1)}%${pa.worst.date ? ' · ' + pa.worst.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</b></div>
+        <div>Volatility (ann.) · streaks<b class="num">${pa.vol.toFixed(0)}% · ▲${pa.maxUpStk} ▼${pa.maxDnStk} · now ${streakTxt}</b></div>
+      </div>
+    </div>
+  </div>
+
+  ${pa.worstDays ? `
+  <div class="grid g2 mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px">
+    <div class="card" style="margin:0">
+      <div class="card-title">Stress test — the index's ${pa.worstDays.n} worst days</div>
+      <div class="chart-stats">
+        <div>${PA.t} avg on those days<b style="color:${pa.worstDays.avgStock >= 0 ? '#34d399' : '#f87171'}">${pa.worstDays.avgStock >= 0 ? '+' : ''}${pa.worstDays.avgStock.toFixed(2)}%</b></div>
+        <div>Index avg<b style="color:#f87171">${pa.worstDays.avgMkt.toFixed(2)}%</b></div>
+        <div>Held up better<b class="num">${pa.worstDays.wins} of ${pa.worstDays.n}</b></div>
+        <div>Next-day bounce<b style="color:${(pa.worstDays.bounce ?? 0) >= 0 ? '#34d399' : '#f87171'}">${pa.worstDays.bounce == null ? '—' : (pa.worstDays.bounce >= 0 ? '+' : '') + pa.worstDays.bounce.toFixed(2) + '%'}</b></div>
+      </div>
+      <div class="muted small" style="margin-top:10px">Crash behavior is where coupling shows its true face — diversification that only works in calm tapes isn't diversification.</div>
+    </div>
+    <div class="card" style="margin:0">
+      <div class="card-title">Participation — the index's ${pa.bestDays.n} best days</div>
+      <div class="chart-stats">
+        <div>${PA.t} avg on those days<b style="color:${pa.bestDays.avgStock >= 0 ? '#34d399' : '#f87171'}">${pa.bestDays.avgStock >= 0 ? '+' : ''}${pa.bestDays.avgStock.toFixed(2)}%</b></div>
+        <div>Index avg<b style="color:#34d399">+${pa.bestDays.avgMkt.toFixed(2)}%</b></div>
+        <div>Outpaced the index<b class="num">${pa.bestDays.wins} of ${pa.bestDays.n}</b></div>
+        <div>Up/down capture (window)<b class="num">${pa.upCap != null ? Math.round(pa.upCap * 100) + '%' : '—'} / ${pa.dnCap != null ? Math.round(pa.dnCap * 100) + '%' : '—'}</b></div>
+      </div>
+      <div class="muted small" style="margin-top:10px">Missing the market's best days is as costly as eating its worst — the ideal profile wins both columns.</div>
+    </div>
+  </div>` : ''}
+
+  <div class="card mb">
+    <div class="card-title">Relative path — ${PA.t} vs ${idx.name} (rebased)
+      <span class="muted small">β ${pa.beta != null ? pa.beta.toFixed(2) : '—'} · correlation ${pa.corr != null ? pa.corr.toFixed(2) : '—'}</span>
+    </div>
+    <canvas id="paRS"></canvas>
+    <div class="muted small" style="margin-top:8px">Dashed line = ${idx.name} scaled to the same starting point. Divergence is the story; the gap at the right edge is the window's alpha.</div>
+  </div>
+
+  <div class="grid g2 mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px">
+    <div class="card" style="margin:0">
+      <div class="card-title">Monthly rounds — ${PA.t} vs ${idx.name}</div>
+      <div class="tbl-wrap" style="max-height:330px">
+        <table class="tbl"><thead><tr><th>Round ending</th><th>${PA.t}</th><th>${PA.idx}</th><th>Edge</th><th></th></tr></thead>
+        <tbody>${pa.blocks.slice().reverse().map(b => `
+          <tr><td>${b.label}</td><td>${F.chg(b.sRet, 1)}</td><td>${F.chg(b.mRet, 1)}</td>
+          <td>${F.chg(b.sRet - b.mRet, 1)}</td><td>${b.sRet > b.mRet ? '<b style="color:#34d399">W</b>' : '<b style="color:#f87171">L</b>'}</td></tr>`).join('')}
+        </tbody></table>
+      </div>
+      <div class="muted small" style="margin-top:8px">Won ${pa.blocks.filter(b => b.sRet > b.mRet).length} of the last ${pa.blocks.length} 21-day rounds.</div>
+    </div>
+    <div class="card" style="margin:0">
+      <div class="card-title">Down-day champions — whole universe, this window <span class="muted small">${PA.t} ranks #${myRank || '—'} of ${board.length}</span></div>
+      <div class="tbl-wrap" style="max-height:330px">
+        <table class="tbl"><thead><tr><th>#</th><th>Company</th><th>Up on index-down days</th><th>Beat rate</th><th>Return</th></tr></thead>
+        <tbody>
+          ${board.slice(0, 10).map(boardRow).join('')}
+          ${myRank > 10 ? boardRow(board[myRank - 1], myRank - 1) : ''}
+        </tbody></table>
+      </div>
+      <div class="muted small" style="margin-top:8px">% of ${idx.name}-down days each stock still closed green. Click any row to inspect it.</div>
+    </div>
+  </div>`;
+
+  // wire controls
+  $('#paStock').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (v) App.go('action/' + v); };
+  $('#paIdx').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; PA.idx = c.dataset.i; renderAction(); };
+  $('#paWin').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; PA.win = +c.dataset.w; renderAction(); };
+
+  // charts
+  barChart($('#paHist'), pa.hist.labels, [{ color: '#34d399', data: pa.hist.counts }], { height: 175 });
+  const sTail = Array.from(m.series.slice(m.series.length - 1 - pa.n));
+  const dTail = m.dates.slice(m.dates.length - 1 - pa.n);
+  const iTail = Array.from(idx.series.slice(idx.series.length - 1 - pa.n));
+  const scale = sTail[0] / iTail[0];
+  lineChart($('#paRS'), sTail, dTail, { height: 270, overlays: [{ data: iTail.map(v => v * scale), color: 'rgba(148,163,184,.85)' }] });
+}
+
+// ============================================================
 // SCREENER
 // ============================================================
 const SCR = { preset: 'all', sec: 'all', minScore: 0, maxPE: '', minDY: 0, minRG: -99, sort: 'score', dir: -1,
@@ -330,6 +511,7 @@ function renderStock(t){
     <div class="stock-actions">
       <button class="icon-btn ${watched ? 'on' : ''}" title="Watchlist" onclick="App.toggleWatch('${t}')">${watched ? '★' : '☆'}</button>
       <button class="btn small" onclick="App.addCompare('${t}')">⇄ Compare</button>
+      <button class="btn small" onclick="App.go('action/${t}')">⇅ Price action</button>
       <button class="btn small" onclick="App.go('portfolio?add=${t}')">◔ Add to portfolio</button>
       <span class="muted small" style="margin-left:auto">${s.d}</span>
     </div>
@@ -349,7 +531,7 @@ function renderStock(t){
   </div>
 
   <div class="card mb">
-    <div class="card-title">Emerald Edge — seven proprietary signals
+    <div class="card-title">Emerald Edge — eight proprietary signals
       <b style="color:${scoreColor(m.edge.score)}">${Math.round(m.edge.score)}</b>
     </div>
     <div class="edge-grid">
@@ -366,7 +548,7 @@ function renderStock(t){
         </div>`;
       }).join('')}
     </div>
-    <div class="muted-block">These seven signals are Emerald's own methodology — market-relative and ranked against the live universe, not fixed thresholds. See the Academy for how each works. They carry 16% of the composite score.</div>
+    <div class="muted-block">These eight signals are Emerald's own methodology — market-relative and ranked against the live universe, not fixed thresholds. See the Academy for how each works, and the <a href="#/action/${t}" style="color:var(--accent,#34d399)">Price Action Lab</a> for the day-by-day market battle behind the ⇅ signal.</div>
   </div>
 
   <div class="card mb">
@@ -578,6 +760,7 @@ const CMP_ROWS = [
   { l: '✦ Quality vs Price', get: m => m.edge.qad.v, fmt: v => Math.round(v), best: 'max' },
   { l: '✦ Trend Quality', get: m => m.edge.tqs.v, fmt: v => Math.round(v), best: 'max' },
   { l: '✦ Antifragility', get: m => m.edge.afs.v, fmt: v => Math.round(v), best: 'max' },
+  { l: '✦ Price Action', get: m => m.edge.pas.v, fmt: v => Math.round(v), best: 'max' },
   { l: '✦ Compounding Engine', get: m => m.edge.ces.v, fmt: v => Math.round(v), best: 'max' },
   { l: '✦ Crowd Friction', get: m => m.edge.cfg.v, fmt: v => Math.round(v), best: 'max' },
   { l: 'Edge Score', get: m => m.edge.score, fmt: v => Math.round(v), best: 'max' },
@@ -808,7 +991,7 @@ function renderAcademy(){
       </ul>
       <p>Each rating also carries a <b>conviction</b> tag: High when the pillars broadly agree and the data is complete, Low when they conflict — a 60 made of all-60s is a steadier bet than a 60 made of 90s and 20s.</p>
       <p><b>78+ = Strong Buy</b>, 64+ = Buy, 50+ = Hold, 36+ = Underperform, below = Avoid. The score is a research filter, not an oracle — always read the flags and form your own thesis.</p>`],
-    ['✦', 'The Emerald Edge signals — our own seven methods', `
+    ['✦', 'The Emerald Edge signals — our own eight methods', `
       <p>The classic pillars use well-known finance. The <b>Edge signals are Emerald's own methodology</b>, built on two ideas most retail tools skip: a stock's behavior only means something <i>relative to the market</i>, and cheap/expensive only means something <i>relative to every other stock you could buy instead</i>. Together they carry 16% of the composite.</p>
       <ul>
         <li><b>⛨ Moat Durability Index</b> — high returns attract competition; the question is whether they <i>persist</i>. We measure the spread of ROIC over an estimated cost of capital, rank that return against the company's own sector peers, and weigh the evidence the spread is defensible: gross-margin pricing power, and how ruler-straight the real multi-year revenue path has been (steady compounding is moat evidence; spiky growth is not).</li>
@@ -816,6 +999,7 @@ function renderAcademy(){
         <li><b>◈ Quality vs Price</b> — every stock gets two ranks against the whole live universe: business quality (ROIC, cash generation, margins) and price tag (EV/EBITDA, P/E, P/S). The signal scores the <i>gap</i>. Top-shelf goods on a mid-shelf tag is the setup that outperforms; a premium price on a mid-shelf business is how good companies become bad investments.</li>
         <li><b>∿ Trend Quality Score</b> — not <i>whether</i> it beat the market but <i>how</i>. We compute the information ratio against the S&amp;P 500 over the past year (excluding the noisy last month — the classic momentum refinement), the share of rolling quarters it was ahead, and penalize lottery-style profiles whose gains arrive in a few huge spikes — smooth outperformance tends to persist; spiky outperformance tends to revert.</li>
         <li><b>⌁ Antifragility Score</b> — convexity, measured: how much of the market's rallies does the stock capture versus how much of the sell-offs does it absorb? A stock that takes 90% of the upside but only 60% of the downside compounds wealth through whole cycles. We also check behavior on the market's 15 worst days, drawdown depth and duration, and the balance-sheet buffers that let a company play offense in a crisis.</li>
+        <li><b>⇅ Price Action Score</b> — market-day independence, counted rather than assumed: on the days the index actually <i>fell</i>, how often did this stock close green? Plus rally participation, the share of all days it beats the tape, and whether buyers return the day after the market's worst sessions. A stock that rises on 55%+ of down days has its own demand — explore any name's full day-by-day record in the <b>Price Action Lab</b>.</li>
         <li><b>↻ Compounding Engine Score</b> — growth is only valuable if it funds itself. We estimate the internal compounding rate (ROIC × earnings retained), check how much of reported profit converts to actual cash, and whether profits grow faster than revenue. Companies that fail this test must borrow or dilute you to grow.</li>
         <li><b>⚖ Crowd Friction Gauge</b> — every trade has a counterparty. We cross-reference analyst conviction and price targets, short-seller pressure, insider ownership and momentum euphoria. The best setups are where informed believers are loud but the price hasn't moved yet; the worst are crowded euphoria with heavy short interest on the other side.</li>
       </ul>
@@ -970,6 +1154,7 @@ function render(){
   window.scrollTo(0, 0);
   switch (page){
     case 'screener':  renderScreener(params); break;
+    case 'action':    renderAction(arg); break;
     case 'stock':     renderStock(decodeURIComponent(arg || '')); break;
     case 'compare':   renderCompare(); break;
     case 'watchlist': renderWatchlist(); break;

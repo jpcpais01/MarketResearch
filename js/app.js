@@ -174,9 +174,18 @@ function moverRow(m, withScore = false){
 // ============================================================
 // PRICE ACTION LAB
 // ============================================================
-const PA = { t: null, idx: 'SPX', win: 252 };
+const PA = { t: null, idx: 'SPX', win: 252, sort: 'gor', dir: -1 };
 const PA_WINS = [['1M', 21], ['2M', 42], ['3M', 63], ['6M', 126], ['1Y', 252], ['2Y', 504]];
-const PA_IDX = [['SPX', 'S&P 500'], ['NDX', 'Nasdaq 100'], ['DJI', 'Dow Jones']];
+const PA_IDX = [['SPX', 'S&P 500'], ['NDX', 'Nasdaq'], ['DJI', 'Dow']];
+const PA_COLS = [
+  { k: 't',     l: 'Company', dir: 1, get: r => r.t },
+  { k: 'gor',   l: 'Up on index-down days', get: r => r.gor },
+  { k: 'rog',   l: 'Down on index-up days', get: r => r.rog },
+  { k: 'avgUp', l: 'Avg up day', get: r => r.avgUp ?? -999 },
+  { k: 'avgDn', l: 'Avg down day', get: r => r.avgDn ?? -999 },
+  { k: 'beat',  l: 'Beat rate', get: r => r.beat },
+  { k: 'ret',   l: 'Window return', get: r => r.ret }
+];
 
 function renderAction(t){
   if (t) PA.t = decodeURIComponent(t).toUpperCase();
@@ -211,20 +220,21 @@ function renderAction(t){
     </div>`;
   const streakTxt = pa.curStreak > 0 ? `${pa.curStreak} day${pa.curStreak > 1 ? 's' : ''} up` : pa.curStreak < 0 ? `${-pa.curStreak} day${pa.curStreak < -1 ? 's' : ''} down` : 'flat';
 
-  // universe leaderboard for this window + benchmark
-  const board = RANKED.map(x => {
-    const p = priceActionStats(x.series, idx.series, PA.win);
-    return (p && p.mktDown.days >= 5 && p.mktDown.rate != null) ? { t: x.s.t, n: x.s.n, rate: p.mktDown.rate, beat: p.beat, ret: p.ret } : null;
-  }).filter(Boolean).sort((a, b) => b.rate - a.rate);
-  const myRank = board.findIndex(r => r.t === PA.t) + 1;
-  const boardRow = (r, i) => `
-    <tr onclick="App.go('action/${r.t}')" ${r.t === PA.t ? 'style="background:rgba(52,211,153,.08)"' : ''}>
-      <td class="num muted">${i + 1}</td>
-      <td><span class="tk">${r.t}</span><div class="co">${r.n}</div></td>
-      <td><b style="color:${r.rate >= 50 ? '#34d399' : r.rate >= 38 ? '#fbbf24' : '#f87171'}">${r.rate.toFixed(0)}%</b></td>
-      <td>${r.beat.toFixed(0)}%</td>
-      <td>${F.chg(r.ret, 1)}</td>
-    </tr>`;
+  // universe board for this window + benchmark (cached — re-sorting reuses it)
+  const boardKey = PA.idx + '|' + PA.win + '|' + RANKED.length;
+  if (PA._boardKey !== boardKey){
+    PA._board = RANKED.map(x => {
+      const p = priceActionStats(x.series, idx.series, PA.win);
+      return (p && p.mktDown.days >= 5 && p.mktDown.rate != null)
+        ? { t: x.s.t, n: x.s.n, gor: p.mktDown.rate, rog: p.mktUp.rateDn ?? 0, avgUp: p.avgUp, avgDn: p.avgDn, beat: p.beat, ret: p.ret }
+        : null;
+    }).filter(Boolean);
+    PA._boardKey = boardKey;
+  }
+  const board = PA._board;
+  const gorRank = board.slice().sort((a, b) => b.gor - a.gor).findIndex(r => r.t === PA.t) + 1;
+  const sortCol = PA_COLS.find(c => c.k === PA.sort) || PA_COLS[1];
+  const sorted = board.slice().sort((a, b) => (sortCol.get(a) > sortCol.get(b) ? 1 : -1) * PA.dir);
 
   view().innerHTML = `
   <h1 class="page">Price Action Lab</h1>
@@ -232,12 +242,12 @@ function renderAction(t){
 
   <div class="card mb tight">
     <div class="filters" style="grid-template-columns:minmax(170px,1fr) auto auto;align-items:end">
-      <div class="field"><label>Stock</label>
-        <input id="paStock" list="paList" value="${PA.t}" placeholder="Type a ticker…" autocomplete="off" spellcheck="false">
-        <datalist id="paList">${RANKED.map(x => `<option value="${x.s.t}">${x.s.n}</option>`).join('')}</datalist>
+      <div class="field" style="position:relative"><label>Stock</label>
+        <input id="paStock" value="${PA.t}" placeholder="Type a ticker or company…" autocomplete="off" spellcheck="false">
+        <div class="search-results glass" id="paResults"></div>
       </div>
       <div class="field"><label>Benchmark</label>
-        <div class="chips" id="paIdx">${PA_IDX.map(([k, n]) => `<span class="chip ${PA.idx === k ? 'active' : ''}" data-i="${k}" title="${n}">${k}</span>`).join('')}</div>
+        <div class="chips" id="paIdx">${PA_IDX.map(([k, n]) => `<span class="chip ${PA.idx === k ? 'active' : ''}" data-i="${k}">${n}</span>`).join('')}</div>
       </div>
       <div class="field"><label>Window</label>
         <div class="chips" id="paWin">${PA_WINS.map(([l, d]) => `<span class="chip ${PA.win === d ? 'active' : ''}" data-w="${d}">${l}</span>`).join('')}</div>
@@ -313,35 +323,74 @@ function renderAction(t){
     <div class="muted small" style="margin-top:8px">Dashed line = ${idx.name} scaled to the same starting point. Divergence is the story; the gap at the right edge is the window's alpha.</div>
   </div>
 
-  <div class="grid g2 mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px">
-    <div class="card" style="margin:0">
-      <div class="card-title">Monthly rounds — ${PA.t} vs ${idx.name}</div>
-      <div class="tbl-wrap" style="max-height:330px">
-        <table class="tbl"><thead><tr><th>Round ending</th><th>${PA.t}</th><th>${PA.idx}</th><th>Edge</th><th></th></tr></thead>
-        <tbody>${pa.blocks.slice().reverse().map(b => `
-          <tr><td>${b.label}</td><td>${F.chg(b.sRet, 1)}</td><td>${F.chg(b.mRet, 1)}</td>
-          <td>${F.chg(b.sRet - b.mRet, 1)}</td><td>${b.sRet > b.mRet ? '<b style="color:#34d399">W</b>' : '<b style="color:#f87171">L</b>'}</td></tr>`).join('')}
-        </tbody></table>
-      </div>
-      <div class="muted small" style="margin-top:8px">Won ${pa.blocks.filter(b => b.sRet > b.mRet).length} of the last ${pa.blocks.length} 21-day rounds.</div>
+  <div class="card mb">
+    <div class="card-title">Monthly rounds — ${PA.t} vs ${idx.name}
+      <span class="muted small">won ${pa.blocks.filter(b => b.sRet > b.mRet).length} of the last ${pa.blocks.length} 21-day rounds</span>
     </div>
-    <div class="card" style="margin:0">
-      <div class="card-title">Down-day champions — whole universe, this window <span class="muted small">${PA.t} ranks #${myRank || '—'} of ${board.length}</span></div>
-      <div class="tbl-wrap" style="max-height:330px">
-        <table class="tbl"><thead><tr><th>#</th><th>Company</th><th>Up on index-down days</th><th>Beat rate</th><th>Return</th></tr></thead>
-        <tbody>
-          ${board.slice(0, 10).map(boardRow).join('')}
-          ${myRank > 10 ? boardRow(board[myRank - 1], myRank - 1) : ''}
-        </tbody></table>
-      </div>
-      <div class="muted small" style="margin-top:8px">% of ${idx.name}-down days each stock still closed green. Click any row to inspect it.</div>
+    <div class="tbl-wrap" style="max-height:330px">
+      <table class="tbl"><thead><tr><th>Round ending</th><th>${PA.t}</th><th>${PA.idx}</th><th>Edge</th><th></th></tr></thead>
+      <tbody>${pa.blocks.slice().reverse().map(b => `
+        <tr><td>${b.label}</td><td>${F.chg(b.sRet, 1)}</td><td>${F.chg(b.mRet, 1)}</td>
+        <td>${F.chg(b.sRet - b.mRet, 1)}</td><td>${b.sRet > b.mRet ? '<b style="color:#34d399">W</b>' : '<b style="color:#f87171">L</b>'}</td></tr>`).join('')}
+      </tbody></table>
     </div>
+  </div>
+
+  <div class="card mb">
+    <div class="card-title">Down-day champions — whole universe, this window
+      <span class="muted small">${board.length} stocks vs ${idx.name} · ${PA.t} ranks #${gorRank || '—'} on down-day wins · click any column to sort</span>
+    </div>
+    <div class="tbl-wrap" style="max-height:64vh" id="paBoard">
+      <table class="tbl">
+        <thead><tr><th>#</th>${PA_COLS.map(c => `<th data-k="${c.k}" class="${PA.sort === c.k ? 'sorted' : ''}" style="cursor:pointer">${c.l}${PA.sort === c.k ? (PA.dir < 0 ? ' ↓' : ' ↑') : ''}</th>`).join('')}</tr></thead>
+        <tbody>${sorted.map((r, i) => `
+          <tr onclick="App.go('action/${r.t}')" ${r.t === PA.t ? 'style="background:rgba(52,211,153,.08)"' : ''}>
+            <td class="num muted">${i + 1}</td>
+            <td><span class="tk">${r.t}</span><div class="co">${r.n}</div></td>
+            <td><b style="color:${r.gor >= 50 ? '#34d399' : r.gor >= 38 ? '#fbbf24' : '#f87171'}">${r.gor.toFixed(0)}%</b></td>
+            <td><b style="color:${r.rog <= 30 ? '#34d399' : r.rog <= 42 ? '#fbbf24' : '#f87171'}">${r.rog.toFixed(0)}%</b></td>
+            <td style="color:#34d399">+${(r.avgUp ?? 0).toFixed(2)}%</td>
+            <td style="color:#f87171">${(r.avgDn ?? 0).toFixed(2)}%</td>
+            <td>${r.beat.toFixed(0)}%</td>
+            <td>${F.chg(r.ret, 1)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="muted small" style="margin-top:8px">"Up on index-down days" = share of ${idx.name} down days the stock still closed green · "Down on index-up days" = share of its up days the stock missed · click any row to inspect that stock.</div>
   </div>`;
 
-  // wire controls
-  $('#paStock').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (v) App.go('action/' + v); };
+  // wire controls — stock picker uses the app's own styled dropdown, not the native datalist
+  const inp = $('#paStock'), res = $('#paResults');
+  const paMatches = q => {
+    q = q.trim().toUpperCase();
+    const list = q ? RANKED.filter(x => x.s.t.toUpperCase().startsWith(q) || x.s.n.toUpperCase().includes(q)).slice(0, 8) : [];
+    res.innerHTML = list.map(x => `<div class="sr-item" data-t="${x.s.t}">
+      <span class="sr-tick">${x.s.t}</span><span class="sr-name">${x.s.n}</span>
+      <span class="sr-score" style="color:${x.edge.pas.v != null ? scoreColor(x.edge.pas.v) : 'var(--muted)'}">⇅ ${x.edge.pas.v != null ? Math.round(x.edge.pas.v) : '—'}</span></div>`).join('');
+    res.classList.toggle('open', list.length > 0);
+  };
+  inp.oninput = e => paMatches(e.target.value);
+  inp.onfocus = e => e.target.select();
+  inp.onkeydown = e => {
+    if (e.key === 'Enter'){
+      const top = res.querySelector('.sr-item');
+      const v = top ? top.dataset.t : e.target.value.trim().toUpperCase();
+      if (v) App.go('action/' + v);
+    }
+  };
+  inp.onblur = () => setTimeout(() => res.classList.remove('open'), 160);
+  res.onmousedown = e => { const it = e.target.closest('.sr-item'); if (it) App.go('action/' + it.dataset.t); };
   $('#paIdx').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; PA.idx = c.dataset.i; renderAction(); };
   $('#paWin').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; PA.win = +c.dataset.w; renderAction(); };
+  $('#paBoard thead').onclick = e => {
+    const th = e.target.closest('th'); if (!th || !th.dataset.k) return;
+    e.stopPropagation();
+    const k = th.dataset.k;
+    if (PA.sort === k) PA.dir *= -1;
+    else { PA.sort = k; PA.dir = (PA_COLS.find(c => c.k === k).dir === 1) ? 1 : -1; }
+    renderAction();
+  };
 
   // charts
   barChart($('#paHist'), pa.hist.labels, [{ color: '#34d399', data: pa.hist.counts }], { height: 175 });

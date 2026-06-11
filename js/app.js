@@ -180,6 +180,7 @@ const PA_IDX = [['SPX', 'S&P 500'], ['NDX', 'Nasdaq'], ['DJI', 'Dow']];
 const PA_CAPS = [['All', null], ['<5B', [0, 5]], ['5–20B', [5, 20]], ['20–50B', [20, 50]], ['50–200B', [50, 200]], ['>200B', [200, Infinity]]];
 const PA_COLS = [
   { k: 't',     l: 'Company', dir: 1, get: r => r.t },
+  { k: 'sec',   l: 'Sector',  dir: 1, get: r => r.sec ?? '' },
   { k: 'mc',    l: 'Mkt cap', get: r => r.mc ?? -1 },
   { k: 'pax',   l: 'PA Score', get: r => r.pax ?? -999 },
   { k: 'gor',   l: 'Up on index-down days', get: r => r.gor },
@@ -213,6 +214,7 @@ function renderAction(t){
   }
   const alpha = pa.ret - pa.mret;
   const pasSig = m.edge.pas;
+  const paxColor = myPax == null ? 'var(--muted)' : myZ != null && myZ >= 1 ? '#34d399' : myZ != null && myZ <= -1 ? '#f87171' : 'var(--text)';
   const qcell = (title, days, total, avg, good) => `
     <div class="glass" style="padding:14px;border-radius:14px;background:${good ? 'rgba(52,211,153,.10)' : 'rgba(248,113,113,.09)'}">
       <div class="small muted" style="margin-bottom:6px">${title}</div>
@@ -273,14 +275,25 @@ function renderAction(t){
     <div class="card-title">${m.s.n} (${PA.t}) vs ${idx.name} — last ${winLabel} · ${pa.n} trading days
       <span><b style="color:${pa.ret >= 0 ? '#34d399' : '#f87171'}">${pa.ret >= 0 ? '+' : ''}${pa.ret.toFixed(1)}%</b> <span class="muted small">vs index ${pa.mret >= 0 ? '+' : ''}${pa.mret.toFixed(1)}%</span></span>
     </div>
+    <div style="display:flex;align-items:center;gap:28px;margin:14px 0 16px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:5px">PA Score · ${winLabel}</div>
+        <div style="font-size:44px;font-weight:800;line-height:1;color:${paxColor};font-variant-numeric:tabular-nums">${myPax == null ? '—' : (myPax >= 0 ? '+' : '') + myPax.toFixed(1)}</div>
+      </div>
+      <div style="border-left:1px solid var(--border);padding-left:24px;color:var(--muted);font-size:13px;line-height:1.6">
+        ${myPct != null ? `<div><b style="color:var(--text)">${myPct}th percentile</b> of ${paxVals.length} stocks</div>` : ''}
+        ${myZ != null && Math.abs(myZ) >= 2 ? `<div><b style="color:${myZ > 0 ? '#34d399' : '#f87171'}">★ ${myZ > 0 ? 'Positive' : 'Negative'} outlier</b> (${myZ.toFixed(1)}σ)</div>` : ''}
+        <div>0 ≈ market-neutral · &gt;0 = accumulation edge · &lt;0 = distribution drag</div>
+      </div>
+    </div>
     <div class="chart-stats">
       <div>Up on the market's down days<b style="color:${pa.mktDown.rate >= 50 ? '#34d399' : pa.mktDown.rate >= 38 ? '#fbbf24' : '#f87171'}">${pa.mktDown.stockUp} of ${pa.mktDown.days} (${pa.mktDown.rate.toFixed(0)}%)</b></div>
       <div>Red on the market's up days<b style="color:${pa.mktUp.rateDn <= 30 ? '#34d399' : pa.mktUp.rateDn <= 42 ? '#fbbf24' : '#f87171'}">${pa.mktUp.stockDn} of ${pa.mktUp.days} (${pa.mktUp.rateDn.toFixed(0)}%)</b></div>
       <div>Days beating the index<b class="num">${pa.beat.toFixed(0)}%</b></div>
       <div>Alpha over window<b style="color:${alpha >= 0 ? '#34d399' : '#f87171'}">${alpha >= 0 ? '+' : ''}${alpha.toFixed(1)}%</b></div>
     </div>
-    <div class="muted-block" style="margin-top:12px;font-size:13px">⌖ <b>PA Score (this window): ${myPax == null ? '—' : (myPax >= 0 ? '+' : '') + myPax.toFixed(1)}</b>${myPct != null ? ` — ${myPct}th percentile of the universe` : ''}${myZ != null && Math.abs(myZ) >= 2 ? ` · <b style="color:${myZ > 0 ? '#34d399' : '#f87171'}">${myZ > 0 ? 'positive' : 'negative'} outlier ★ (${myZ.toFixed(1)}σ)</b>` : ''}. Frequencies first: the win rate on index-down days and on index-up days, with extra weight on the <b>weaker</b> side — it takes accumulation on both kinds of day to score high, so one-sided momentum spikes can't fake it. Day-matched outperformance adds at most ±8 on top. 0 ≈ moves with the market.</div>
-    <div class="muted-block" style="margin-top:8px">⇅ <b>Price Action signal (1Y): ${pasSig.v == null ? '—' : Math.round(pasSig.v) + '/100'}</b> — ${pasSig.read}</div>
+    <div class="muted-block" style="margin-top:10px;font-size:13px">Win-rate edge across both tape directions, weaker side weighted extra — accumulation must show on good <i>and</i> bad days to score high. Day-matched outperformance capped at ±8 on top.</div>
+    <div class="muted-block" style="margin-top:6px">⇅ <b>Price Action signal (1Y): ${pasSig.v == null ? '—' : Math.round(pasSig.v) + '/100'}</b> — ${pasSig.read}</div>
   </div>
 
   <div class="grid g2 mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px">
@@ -366,6 +379,7 @@ function renderAction(t){
           <tr onclick="App.go('action/${r.t}')" ${r.t === PA.t ? 'style="background:rgba(52,211,153,.08)"' : ''}>
             <td class="num muted">${i + 1}</td>
             <td><span class="tk">${r.t}</span><div class="co">${r.n}</div></td>
+            <td>${r.sec ? `<span class="sector-chip">${r.sec}</span>` : '—'}</td>
             <td class="num">${r.mc != null ? F.big(r.mc) : '—'}</td>
             <td title="${r.z != null ? r.z.toFixed(1) + 'σ vs universe' : ''}">${r.pax == null ? '—' : `<b style="color:${r.z >= 1 ? '#34d399' : r.z <= -1 ? '#f87171' : 'var(--text)'}">${r.pax >= 0 ? '+' : ''}${r.pax.toFixed(1)}</b>${Math.abs(r.z) >= 2 ? ` <span style="color:${r.z > 0 ? '#34d399' : '#f87171'}">★</span>` : ''}`}</td>
             <td><b style="color:${r.gor >= 50 ? '#34d399' : r.gor >= 38 ? '#fbbf24' : '#f87171'}">${r.gor.toFixed(0)}%</b></td>
@@ -428,7 +442,7 @@ function renderAction(t){
 // SCREENER
 // ============================================================
 const SCR = { preset: 'all', sec: 'all', minScore: 0, maxPE: '', minDY: 0, minRG: -99, sort: 'score', dir: -1,
-              edge: { mdi: 0, xgs: 0, qad: 0, tqs: 0, afs: 0, ces: 0, cfg: 0 } };
+              edge: { mdi: 0, xgs: 0, qad: 0, tqs: 0, afs: 0, pas: 0, ces: 0, cfg: 0 } };
 
 function renderScreener(params){
   if (params && params.get('sec')) { SCR.sec = params.get('sec'); SCR.preset = 'all'; }
@@ -483,18 +497,20 @@ function renderScreener(params){
 }
 
 const SCR_COLS = [
-  { k: 'tk', l: 'Company', get: m => m.s.t, dir: 1 },
-  { k: 'px', l: 'Price', get: m => m.s.px },
-  { k: 'chg', l: '1D %', get: m => m.mo.ret1d },
-  { k: 'mc', l: 'Mkt Cap', get: m => m.s.mc },
-  { k: 'pe', l: 'P/E', get: m => m.s.pe ?? 9999, dir: 1 },
-  { k: 'dy', l: 'Yield', get: m => m.s.dy },
-  { k: 'rg', l: 'Rev Gr', get: m => m.s.rg3 ?? -999 },
-  { k: 'roic', l: 'ROIC', get: m => m.s.roic ?? -999 },
-  { k: 'up', l: 'DCF Upside', get: m => m.dcf ? m.dcf.upside : -999 },
-  { k: 'edge', l: 'Edge ✦', get: m => m.edge.score },
-  { k: 'score', l: 'Emerald', get: m => m.score },
-  { k: 'rating', l: 'Rating', get: m => m.score }
+  { k: 'tk',    l: 'Company',    get: m => m.s.t, dir: 1 },
+  { k: 'sec',   l: 'Sector',     get: m => m.s.sec ?? '', dir: 1 },
+  { k: 'px',    l: 'Price',      get: m => m.s.px },
+  { k: 'chg',   l: '1D %',       get: m => m.mo.ret1d },
+  { k: 'mc',    l: 'Mkt Cap',    get: m => m.s.mc },
+  { k: 'pe',    l: 'P/E',        get: m => m.s.pe ?? 9999, dir: 1 },
+  { k: 'dy',    l: 'Yield',      get: m => m.s.dy },
+  { k: 'rg',    l: 'Rev Gr',     get: m => m.s.rg3 ?? -999 },
+  { k: 'roic',  l: 'ROIC',       get: m => m.s.roic ?? -999 },
+  { k: 'up',    l: 'DCF Upside', get: m => m.dcf ? m.dcf.upside : -999 },
+  { k: 'edge',  l: 'Edge ✦',     get: m => m.edge.score },
+  { k: 'pas',   l: 'PA ⇅',       get: m => m.edge.pas.v ?? -999 },
+  { k: 'score', l: 'Emerald',    get: m => m.score },
+  { k: 'rating',l: 'Rating',     get: m => m.score }
 ];
 function drawScreenerTable(){
   const list = RANKED.filter(m => {
@@ -519,6 +535,7 @@ function drawScreenerTable(){
     <tbody>
       ${list.map(m => `<tr onclick="App.go('stock/${m.s.t}')">
         <td><span class="tk">${m.s.t}</span><div class="co">${m.s.n}</div></td>
+        <td>${m.s.sec ? `<span class="sector-chip">${m.s.sec}</span>` : '—'}</td>
         <td>${F.money(m.s.px)}</td>
         <td>${F.chg(m.mo.ret1d)}</td>
         <td>${F.big(m.s.mc)}</td>
@@ -528,6 +545,7 @@ function drawScreenerTable(){
         <td>${F.pct(m.s.roic)}</td>
         <td>${m.dcf ? F.chg(m.dcf.upside, 0) : '<span class="muted">—</span>'}</td>
         <td><b style="color:${scoreColor(m.edge.score)}">${Math.round(m.edge.score)}</b></td>
+        <td>${m.edge.pas.v != null ? `<b style="color:${scoreColor(m.edge.pas.v)}">${Math.round(m.edge.pas.v)}</b>` : '<span class="muted">—</span>'}</td>
         <td>${scoreCell(m.score)}</td>
         <td>${ratingTag(m)}</td>
       </tr>`).join('')}

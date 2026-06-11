@@ -390,6 +390,25 @@ function priceActionStats(series, mkt, days, dates){
   };
 }
 
+/* Composite price-action score ("PA Score") for one priceActionStats result.
+   Combines all four market-day quadrants and relative magnitudes:
+   · winEdge — balanced win rate: average of P(up | index down) and
+     P(up | index up), minus the 50% coin-flip. Averaging across both tape
+     directions removes the index's own drift from the count.
+   · magEdge — avg up-day return ÷ the index's avg up day, MINUS avg down-day
+     return ÷ the index's avg down day. A pure beta-β stock scores ~0 (both
+     ratios ≈ β cancel); positive means it punches harder than it bleeds.
+   0 ≈ indistinguishable from the tape; |score| grows with independence.
+   Cross-sectional z-scores on the page flag the outliers. */
+function paxScore(p){
+  if (!p || p.mktDown.rate == null || p.mktUp.rateDn == null) return null;
+  const winEdge = (p.mktDown.rate + (100 - p.mktUp.rateDn)) / 2 - 50;
+  const upRatio = (p.avgUp != null && p.mktUp.avgMkt) ? p.avgUp / p.mktUp.avgMkt : null;
+  const dnRatio = (p.avgDn != null && p.mktDown.avgMkt) ? p.avgDn / p.mktDown.avgMkt : null;
+  const magEdge = (upRatio != null && dnRatio != null) ? upRatio - dnRatio : 0;
+  return winEdge + 25 * magEdge;
+}
+
 let EDGE_STATS = null;   // sorted per-metric arrays → cross-sectional percentile ranks
 function buildEdgeStats(){
   const grab = f => STOCKS.map(f).filter(v => v != null && isFinite(v)).sort((a, b) => a - b);

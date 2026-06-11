@@ -174,13 +174,14 @@ function moverRow(m, withScore = false){
 // ============================================================
 // PRICE ACTION LAB
 // ============================================================
-const PA = { t: null, idx: 'SPX', win: 252, sort: 'gor', dir: -1, cap: 'All' };
+const PA = { t: null, idx: 'SPX', win: 252, sort: 'pax', dir: -1, cap: 'All' };
 const PA_WINS = [['1M', 21], ['2M', 42], ['3M', 63], ['6M', 126], ['1Y', 252], ['2Y', 504]];
 const PA_IDX = [['SPX', 'S&P 500'], ['NDX', 'Nasdaq'], ['DJI', 'Dow']];
 const PA_CAPS = [['All', null], ['<5B', [0, 5]], ['5–20B', [5, 20]], ['20–50B', [20, 50]], ['50–200B', [50, 200]], ['>200B', [200, Infinity]]];
 const PA_COLS = [
   { k: 't',     l: 'Company', dir: 1, get: r => r.t },
   { k: 'mc',    l: 'Mkt cap', get: r => r.mc ?? -1 },
+  { k: 'pax',   l: 'PA Score', get: r => r.pax ?? -999 },
   { k: 'gor',   l: 'Up on index-down days', get: r => r.gor },
   { k: 'rog',   l: 'Down on index-up days', get: r => r.rog },
   { k: 'avgUp', l: 'Avg up day', get: r => r.avgUp ?? -999 },
@@ -226,13 +227,22 @@ function renderAction(t){
     PA._board = RANKED.map(x => {
       const p = priceActionStats(x.series, idx.series, PA.win);
       return (p && p.mktDown.days >= 5 && p.mktDown.rate != null)
-        ? { t: x.s.t, n: x.s.n, mc: x.s.mc, gor: p.mktDown.rate, rog: p.mktUp.rateDn ?? 0, avgUp: p.avgUp, avgDn: p.avgDn, beat: p.beat, ret: p.ret }
+        ? { t: x.s.t, n: x.s.n, mc: x.s.mc, pax: paxScore(p), gor: p.mktDown.rate, rog: p.mktUp.rateDn ?? 0, avgUp: p.avgUp, avgDn: p.avgDn, beat: p.beat, ret: p.ret }
         : null;
     }).filter(Boolean);
     PA._boardKey = boardKey;
   }
   const board = PA._board;
   const gorRank = board.slice().sort((a, b) => b.gor - a.gor).findIndex(r => r.t === PA.t) + 1;
+  // cross-sectional z-scores for the composite — outliers are |z| ≥ 2
+  const paxVals = board.map(r => r.pax).filter(v => v != null);
+  const paxMu = paxVals.reduce((a, b) => a + b, 0) / (paxVals.length || 1);
+  const paxSd = Math.sqrt(paxVals.reduce((a, b) => a + (b - paxMu) ** 2, 0) / (paxVals.length || 1)) || 1;
+  for (const r of board) r.z = r.pax != null ? (r.pax - paxMu) / paxSd : null;
+  const outliers = board.filter(r => Math.abs(r.z ?? 0) >= 2).length;
+  const myPax = paxScore(pa);
+  const myZ = myPax != null ? (myPax - paxMu) / paxSd : null;
+  const myPct = myPax != null && paxVals.length ? Math.round(paxVals.filter(v => v <= myPax).length / paxVals.length * 100) : null;
   const capRange = (PA_CAPS.find(c => c[0] === PA.cap) || PA_CAPS[0])[1];
   const sortCol = PA_COLS.find(c => c.k === PA.sort) || PA_COLS[2];
   const sorted = board
@@ -268,7 +278,8 @@ function renderAction(t){
       <div>Days beating the index<b class="num">${pa.beat.toFixed(0)}%</b></div>
       <div>Alpha over window<b style="color:${alpha >= 0 ? '#34d399' : '#f87171'}">${alpha >= 0 ? '+' : ''}${alpha.toFixed(1)}%</b></div>
     </div>
-    <div class="muted-block" style="margin-top:12px">⇅ <b>Price Action signal (1Y): ${pasSig.v == null ? '—' : Math.round(pasSig.v) + '/100'}</b> — ${pasSig.read}</div>
+    <div class="muted-block" style="margin-top:12px;font-size:13px">⌖ <b>PA Score (this window): ${myPax == null ? '—' : (myPax >= 0 ? '+' : '') + myPax.toFixed(1)}</b>${myPct != null ? ` — ${myPct}th percentile of the universe` : ''}${myZ != null && Math.abs(myZ) >= 2 ? ` · <b style="color:${myZ > 0 ? '#34d399' : '#f87171'}">${myZ > 0 ? 'positive' : 'negative'} outlier ★ (${myZ.toFixed(1)}σ)</b>` : ''}. One number for the whole grid below: balanced win rate across up and down tapes, plus how hard it punches on up days vs how much it bleeds on down days (each relative to the index's own typical move, so beta cancels). 0 ≈ moves with the market.</div>
+    <div class="muted-block" style="margin-top:8px">⇅ <b>Price Action signal (1Y): ${pasSig.v == null ? '—' : Math.round(pasSig.v) + '/100'}</b> — ${pasSig.read}</div>
   </div>
 
   <div class="grid g2 mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px">
@@ -341,7 +352,7 @@ function renderAction(t){
 
   <div class="card mb">
     <div class="card-title">Down-day champions — whole universe, this window
-      <span class="muted small">${sorted.length}${capRange ? ' of ' + board.length : ''} stocks vs ${idx.name} · ${PA.t} ranks #${gorRank || '—'} on down-day wins · click any column to sort</span>
+      <span class="muted small">${sorted.length}${capRange ? ' of ' + board.length : ''} stocks vs ${idx.name} · ${outliers} outliers ★ (|z| ≥ 2σ on PA Score) · ${PA.t} ranks #${gorRank || '—'} on down-day wins · click any column to sort</span>
     </div>
     <div class="chips mb" id="paCap">${PA_CAPS.map(([l]) => `<span class="chip ${PA.cap === l ? 'active' : ''}" data-c="${l}">${l === 'All' ? 'All caps' : l}</span>`).join('')}</div>
     <div class="tbl-wrap" style="max-height:64vh" id="paBoard">
@@ -352,6 +363,7 @@ function renderAction(t){
             <td class="num muted">${i + 1}</td>
             <td><span class="tk">${r.t}</span><div class="co">${r.n}</div></td>
             <td class="num">${r.mc != null ? F.big(r.mc) : '—'}</td>
+            <td title="${r.z != null ? r.z.toFixed(1) + 'σ vs universe' : ''}">${r.pax == null ? '—' : `<b style="color:${r.z >= 1 ? '#34d399' : r.z <= -1 ? '#f87171' : 'var(--text)'}">${r.pax >= 0 ? '+' : ''}${r.pax.toFixed(1)}</b>${Math.abs(r.z) >= 2 ? ` <span style="color:${r.z > 0 ? '#34d399' : '#f87171'}">★</span>` : ''}`}</td>
             <td><b style="color:${r.gor >= 50 ? '#34d399' : r.gor >= 38 ? '#fbbf24' : '#f87171'}">${r.gor.toFixed(0)}%</b></td>
             <td><b style="color:${r.rog <= 30 ? '#34d399' : r.rog <= 42 ? '#fbbf24' : '#f87171'}">${r.rog.toFixed(0)}%</b></td>
             <td style="color:#34d399">+${(r.avgUp ?? 0).toFixed(2)}%</td>
@@ -362,7 +374,7 @@ function renderAction(t){
         </tbody>
       </table>
     </div>
-    <div class="muted small" style="margin-top:8px">"Up on index-down days" = share of ${idx.name} down days the stock still closed green · "Down on index-up days" = share of its up days the stock missed · click any row to inspect that stock.</div>
+    <div class="muted small" style="margin-top:8px"><b>PA Score</b> = balanced win rate across both tape directions + relative punch-vs-bleed (beta cancels; 0 ≈ moves with the market; ★ = statistical outlier, |z| ≥ 2σ) · "Up on index-down days" = share of ${idx.name} down days the stock still closed green · "Down on index-up days" = share of its up days the stock missed · click any row to inspect that stock.</div>
   </div>`;
 
   // wire controls — stock picker uses the app's own styled dropdown, not the native datalist

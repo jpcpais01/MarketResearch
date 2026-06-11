@@ -36,6 +36,7 @@ let DATES_MAP = null;
 let LIVE_INDEXES = null;
 
 const FRESH_MS = 30 * 60 * 1000;   // boot instantly from local cache if newer than this
+const IDB_VER = 2;                  // bump whenever the universe shape changes (busts stale IDB caches)
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function setBoot(msg, frac){
@@ -177,7 +178,7 @@ const DATA_READY = (async () => {
   // 0) very fresh IDB cache → instant boot, skip the network entirely
   localStorage.removeItem('em_universe');   // migrate away from the old localStorage cache
   const cached = await idbGet('universe');
-  if (cached && cached.asof && Date.now() - cached.asof < FRESH_MS){
+  if (cached && cached.asof && cached._v === IDB_VER && Date.now() - cached.asof < FRESH_MS){
     try { adoptUniverse(cached, 'live'); setBoot('Loaded from local cache', 1); return; } catch { /* fall through */ }
   }
   // 1) network (local server OR serverless — auto-detected).
@@ -191,7 +192,7 @@ const DATA_READY = (async () => {
           try { adoptUniverse(partial, 'live'); resolve(true); } catch { /* keep waiting for more */ }
         });
         adoptUniverse(u, 'live');
-        idbSet('universe', u);
+        idbSet('universe', { ...u, _v: IDB_VER });
         setBoot('Computing scores…', 1);
         resolve(true);
         document.dispatchEvent(new CustomEvent('em:universe', { detail: { complete: true, n: (u.stocks || []).length } }));

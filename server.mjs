@@ -11,7 +11,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TICKERS, INDEX_SYMS, ySym, fetchChart, fetchStock, searchSymbols, encodeDates } from './api/_lib/yahoo.js';
+import { TICKERS, INDEX_SYMS, ySym, fetchChart, fetchStock, searchSymbols, fetchNews, encodeDates } from './api/_lib/yahoo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4173;
@@ -131,6 +131,13 @@ http.createServer(async (req, res) => {
     const q = String(url.searchParams.get('q') || '').trim().slice(0, 40);
     if (!q) return json(res, 400, { error: 'pass ?q=apple' });
     try { return json(res, 200, { q, results: await searchSymbols(q) }); }
+    catch (e){ return json(res, 502, { error: String(e.message || e) }); }
+  }
+
+  if (url.pathname === '/api/news'){
+    const t = String(url.searchParams.get('t') || '').trim().toUpperCase().slice(0, 12);
+    if (!t) return json(res, 400, { error: 'pass ?t=AAPL' });
+    try { return json(res, 200, await fetchNews(t)); }
     catch (e){ return json(res, 502, { error: String(e.message || e) }); }
   }
 

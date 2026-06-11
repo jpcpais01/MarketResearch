@@ -85,6 +85,27 @@ export async function searchSymbols(q){
     }));
 }
 
+/* Headlines + full company profile for one symbol (stock-page extras).
+   The universe payload only carries a 300-char description to stay slim;
+   the full text rides along with the news fetch. */
+export async function fetchNews(t){
+  const sym = ySym(t);
+  const [sr, prof] = await Promise.all([
+    yahooFinance.search(sym, { quotesCount: 0, newsCount: 10 }),
+    yahooFinance.quoteSummary(sym, { modules: ['assetProfile'] }).catch(() => null)
+  ]);
+  return {
+    t,
+    desc: prof?.assetProfile?.longBusinessSummary || null,
+    news: (sr.news || []).map(n => ({
+      ti: n.title,
+      pub: n.publisher,
+      url: n.link,
+      at: n.providerPublishTime ? +new Date(n.providerPublishTime) : null
+    }))
+  };
+}
+
 export async function fetchChart(sym, years){
   const period1 = new Date(Date.now() - years * 365.25 * 86400e3);
   const ch = await yahooFinance.chart(sym, { period1, interval: '1d' });

@@ -174,7 +174,7 @@ function moverRow(m, withScore = false){
 // ============================================================
 // PRICE ACTION LAB
 // ============================================================
-const PA = { t: null, idx: 'SPX', win: 252, sort: 'pax', dir: -1, cap: 'All', sec: 'All' };
+const PA = { t: null, idx: 'SPX', win: 126, sort: 'pax', dir: -1, cap: 'All', sec: 'All' };
 const PA_WINS = [['1M', 21], ['2M', 42], ['3M', 63], ['6M', 126], ['1Y', 252], ['2Y', 504]];
 const PA_IDX = [['SPX', 'S&P 500'], ['NDX', 'Nasdaq'], ['DJI', 'Dow']];
 const PA_CAPS = [['All', null], ['<5B', [0, 5]], ['5–20B', [5, 20]], ['20–50B', [20, 50]], ['50–200B', [50, 200]], ['>200B', [200, Infinity]]];
@@ -214,7 +214,6 @@ function renderAction(t){
   }
   const alpha = pa.ret - pa.mret;
   const pasSig = m.edge.pas;
-  const paxColor = myPax == null ? 'var(--muted)' : myZ != null && myZ >= 1 ? '#34d399' : myZ != null && myZ <= -1 ? '#f87171' : 'var(--text)';
   const qcell = (title, days, total, avg, good) => `
     <div class="glass" style="padding:14px;border-radius:14px;background:${good ? 'rgba(52,211,153,.10)' : 'rgba(248,113,113,.09)'}">
       <div class="small muted" style="margin-bottom:6px">${title}</div>
@@ -245,6 +244,7 @@ function renderAction(t){
   const myPax = paxScore(pa);
   const myZ = myPax != null ? (myPax - paxMu) / paxSd : null;
   const myPct = myPax != null && paxVals.length ? Math.round(paxVals.filter(v => v <= myPax).length / paxVals.length * 100) : null;
+  const paxColor = myPax == null ? 'var(--muted)' : myZ != null && myZ >= 1 ? '#34d399' : myZ != null && myZ <= -1 ? '#f87171' : 'var(--text)';
   const capRange = (PA_CAPS.find(c => c[0] === PA.cap) || PA_CAPS[0])[1];
   const sortCol = PA_COLS.find(c => c.k === PA.sort) || PA_COLS[2];
   const paSectors = ['All', ...new Set(board.map(r => r.sec).filter(Boolean))].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b));
@@ -441,8 +441,23 @@ function renderAction(t){
 // ============================================================
 // SCREENER
 // ============================================================
-const SCR = { preset: 'all', sec: 'all', minScore: 0, maxPE: '', minDY: 0, minRG: -99, sort: 'score', dir: -1,
-              edge: { mdi: 0, xgs: 0, qad: 0, tqs: 0, afs: 0, pas: 0, ces: 0, cfg: 0 } };
+const SCR = { preset: 'all', sec: 'all', minScore: 0, maxPE: '', minDY: 0, minRG: -99, minPAX: '', sort: 'score', dir: -1,
+              edge: { mdi: 0, xgs: 0, qad: 0, tqs: 0, afs: 0, ces: 0, cfg: 0 } };
+
+// 6-month PA Score vs the S&P 500 for every stock — computed once per universe, reused by column/filter/sort
+let PAX6 = null, PAX6n = 0;
+function pax6(t){
+  if (!PAX6 || PAX6n !== RANKED.length){
+    const idx = indexSeries('SPX');
+    PAX6 = new Map();
+    for (const x of RANKED){
+      const p = priceActionStats(x.series, idx.series, 126);
+      PAX6.set(x.s.t, (p && p.mktDown.days >= 5 && p.mktDown.rate != null) ? paxScore(p) : null);
+    }
+    PAX6n = RANKED.length;
+  }
+  return PAX6.get(t);
+}
 
 function renderScreener(params){
   if (params && params.get('sec')) { SCR.sec = params.get('sec'); SCR.preset = 'all'; }
@@ -464,10 +479,11 @@ function renderScreener(params){
       <div class="field"><label>Max P/E</label><input type="number" id="fPE" placeholder="any" value="${SCR.maxPE}"></div>
       <div class="field"><label>Min Dividend Yield %</label><input type="number" id="fDY" placeholder="0" step="0.5" value="${SCR.minDY || ''}"></div>
       <div class="field"><label>Min Revenue Growth %</label><input type="number" id="fRG" placeholder="any" value="${SCR.minRG > -99 ? SCR.minRG : ''}"></div>
+      <div class="field"><label title="Composite price-action score: win-rate edge on both index-up and index-down days, 6-month window vs the S&P 500. 0 ≈ moves with the market.">⇅ Min PA Score (6M)</label><input type="number" id="fPAX" placeholder="any" step="1" value="${SCR.minPAX}"></div>
     </div>
     <div class="muted small" style="margin:14px 0 8px">✦ <b>Edge signal minimums</b> — drag any signal above 0 to require it; combine several to stack conditions (stocks without that signal are excluded while its filter is active).</div>
     <div class="filters" id="edgeFilters">
-      ${EDGE_DEFS.map(d => `<div class="field"><label title="${d.q}">${d.ic} ${d.name} · <span id="feV_${d.k}">${SCR.edge[d.k] > 0 ? '≥ ' + SCR.edge[d.k] : 'off'}</span></label>
+      ${EDGE_DEFS.filter(d => d.k !== 'pas').map(d => `<div class="field"><label title="${d.q}">${d.ic} ${d.name} · <span id="feV_${d.k}">${SCR.edge[d.k] > 0 ? '≥ ' + SCR.edge[d.k] : 'off'}</span></label>
         <input type="range" data-ek="${d.k}" min="0" max="90" step="5" value="${SCR.edge[d.k]}"></div>`).join('')}
     </div>
     <div class="muted small" style="margin-top:12px" id="presetDesc">${PRESETS[SCR.preset].desc}</div>
@@ -487,6 +503,7 @@ function renderScreener(params){
   $('#fPE').oninput = e => { SCR.maxPE = e.target.value; drawScreenerTable(); };
   $('#fDY').oninput = e => { SCR.minDY = +e.target.value || 0; drawScreenerTable(); };
   $('#fRG').oninput = e => { SCR.minRG = e.target.value === '' ? -99 : +e.target.value; drawScreenerTable(); };
+  $('#fPAX').oninput = e => { SCR.minPAX = e.target.value; drawScreenerTable(); };
   $('#edgeFilters').oninput = e => {
     const ek = e.target.dataset.ek; if (!ek) return;
     SCR.edge[ek] = +e.target.value;
@@ -508,7 +525,7 @@ const SCR_COLS = [
   { k: 'roic',  l: 'ROIC',       get: m => m.s.roic ?? -999 },
   { k: 'up',    l: 'DCF Upside', get: m => m.dcf ? m.dcf.upside : -999 },
   { k: 'edge',  l: 'Edge ✦',     get: m => m.edge.score },
-  { k: 'pas',   l: 'PA ⇅',       get: m => m.edge.pas.v ?? -999 },
+  { k: 'pas',   l: 'PA ⇅ 6M',    get: m => pax6(m.s.t) ?? -999 },
   { k: 'score', l: 'Emerald',    get: m => m.score },
   { k: 'rating',l: 'Rating',     get: m => m.score }
 ];
@@ -520,6 +537,7 @@ function drawScreenerTable(){
     if (SCR.maxPE !== '' && +SCR.maxPE > 0 && !(m.s.pe != null && m.s.pe <= +SCR.maxPE)) return false;
     if (SCR.minDY > 0 && m.s.dy < SCR.minDY) return false;
     if (SCR.minRG > -99 && (m.s.rg3 ?? -999) < SCR.minRG) return false;
+    if (SCR.minPAX !== ''){ const v = pax6(m.s.t); if (!(v != null && v >= +SCR.minPAX)) return false; }
     for (const k in SCR.edge){
       const min = SCR.edge[k];
       if (min > 0 && !(m.edge[k].v != null && m.edge[k].v >= min)) return false;
@@ -545,7 +563,7 @@ function drawScreenerTable(){
         <td>${F.pct(m.s.roic)}</td>
         <td>${m.dcf ? F.chg(m.dcf.upside, 0) : '<span class="muted">—</span>'}</td>
         <td><b style="color:${scoreColor(m.edge.score)}">${Math.round(m.edge.score)}</b></td>
-        <td>${m.edge.pas.v != null ? `<b style="color:${scoreColor(m.edge.pas.v)}">${Math.round(m.edge.pas.v)}</b>` : '<span class="muted">—</span>'}</td>
+        <td>${(() => { const v = pax6(m.s.t); return v != null ? `<b style="color:${v > 3 ? '#34d399' : v < -3 ? '#f87171' : 'var(--text)'}">${v >= 0 ? '+' : ''}${v.toFixed(1)}</b>` : '<span class="muted">—</span>'; })()}</td>
         <td>${scoreCell(m.score)}</td>
         <td>${ratingTag(m)}</td>
       </tr>`).join('')}
@@ -565,6 +583,14 @@ function drawScreenerTable(){
 // ============================================================
 const RANGES = { '1M': 21, '3M': 63, '6M': 126, '1Y': 252, '5Y': TRADING_DAYS };
 let stockRange = '1Y';
+
+function timeAgo(ms){
+  const s = (Date.now() - ms) / 1e3;
+  if (s < 3600) return Math.max(1, Math.round(s / 60)) + 'm ago';
+  if (s < 86400) return Math.round(s / 3600) + 'h ago';
+  const days = Math.round(s / 86400);
+  return days < 30 ? days + 'd ago' : new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 function renderStock(t){
   t = t.toUpperCase();
@@ -603,7 +629,6 @@ function renderStock(t){
       <button class="btn small" onclick="App.addCompare('${t}')">⇄ Compare</button>
       <button class="btn small" onclick="App.go('action/${t}')">⇅ Price action</button>
       <button class="btn small" onclick="App.go('portfolio?add=${t}')">◔ Add to portfolio</button>
-      <span class="muted small" style="margin-left:auto">${s.d}</span>
     </div>
   </div>
 
@@ -729,6 +754,17 @@ function renderStock(t){
     </div>
   </div>
 
+  <div class="grid g2 mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+    <div class="card" style="margin:0">
+      <div class="card-title">About ${s.n}</div>
+      <p class="muted" id="stDesc" style="line-height:1.7;margin:0;font-size:13.5px">${s.d ? escHTML(s.d) : 'Loading description…'} <span class="more" id="descMore" style="white-space:nowrap">read more</span></p>
+    </div>
+    <div class="card" style="margin:0">
+      <div class="card-title">Latest news</div>
+      <div id="stNews" style="max-height:320px;overflow:auto"><div class="muted small">Loading news…</div></div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-title">Sector peers — ${s.sec}</div>
     <div class="tbl-wrap">
@@ -744,6 +780,40 @@ function renderStock(t){
   // radar
   radarChart($('#stRadar'), ['Value', 'Growth', 'Quality', 'Health', 'Momentum', 'Edge'],
     [{ color: '#34d399', values: [m.sv, m.sg, m.sq, m.sh, m.sm, m.edge.score] }], 215);
+
+  // about + news — one on-demand fetch serves both (full profile text + headlines)
+  const newsP = fetch('/api/news?t=' + encodeURIComponent(t))
+    .then(r => r.ok ? r.json() : null).catch(() => null);
+  newsP.then(j => {
+    const nv = $('#stNews');
+    if (nv){
+      const items = (j && j.news || []).filter(n => n.ti && n.url);
+      nv.innerHTML = items.length ? items.map(n => `
+        <a class="news-item" href="${escHTML(n.url)}" target="_blank" rel="noopener noreferrer">
+          <div class="nt">${escHTML(n.ti)}</div>
+          <div class="nm muted small">${escHTML(n.pub || '')}${n.at ? ' · ' + timeAgo(n.at) : ''}</div>
+        </a>`).join('') : '<div class="muted small">No recent headlines found for this symbol.</div>';
+    }
+    // if the universe payload had no (or a truncated) description, upgrade silently
+    const p = $('#stDesc');
+    if (p && j && j.desc && !s.d) p.firstChild.textContent = j.desc.split('. ').slice(0, 2).join('. ').slice(0, 300) + ' ';
+  });
+  const wireDescToggle = () => {
+    const more = $('#descMore'); if (!more) return;
+    more.onclick = async () => {
+      const p = $('#stDesc'); if (!p) return;
+      more.textContent = '…';
+      const j = await newsP;
+      const full = (j && j.desc) || s.d;
+      if (!full){ more.textContent = 'full description unavailable'; return; }
+      p.innerHTML = `${escHTML(full)} <span class="more" id="descMore" style="white-space:nowrap">show less</span>`;
+      $('#descMore').onclick = () => {
+        p.innerHTML = `${escHTML(s.d || full.split('. ').slice(0, 2).join('. ').slice(0, 300))} <span class="more" id="descMore" style="white-space:nowrap">read more</span>`;
+        wireDescToggle();
+      };
+    };
+  };
+  wireDescToggle();
 
   // growth bars
   const yr = new Date().getFullYear();

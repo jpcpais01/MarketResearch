@@ -11,14 +11,14 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TICKERS, INDEX_SYMS, ySym, fetchChart, fetchStock, searchSymbols } from './api/_lib/yahoo.js';
+import { TICKERS, INDEX_SYMS, ySym, fetchChart, fetchStock, searchSymbols, encodeDates } from './api/_lib/yahoo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4173;
 const CACHE_DIR = path.join(__dirname, 'cache');
 const CACHE_FILE = path.join(CACHE_DIR, 'universe.json');
 const TTL_MS = 6 * 3600 * 1000;          // universe refresh interval
-const CONCURRENCY = 5;
+const CONCURRENCY = 8;
 
 // ---------------- universe state ----------------
 let universe = null;                  // { asof, stocks, indexes, errors }
@@ -53,7 +53,7 @@ async function buildUniverse(){
   for (const ix of INDEX_SYMS){
     try {
       const { closes, dates } = await fetchChart(ix.sym, 2.1);
-      indexes.push({ t: ix.t, n: ix.n, closes, dates });
+      indexes.push({ t: ix.t, n: ix.n, closes, dd: encodeDates(dates) });
     } catch (e){ errors.push({ t: ix.t, e: String(e.message || e).slice(0, 120) }); }
     progress.done++;
   }
@@ -112,7 +112,7 @@ http.createServer(async (req, res) => {
 
   // parity with the Vercel serverless API (also handy for testing the chunked client path)
   if (url.pathname === '/api/batch'){
-    const ts = String(url.searchParams.get('t') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean).slice(0, 12);
+    const ts = String(url.searchParams.get('t') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean).slice(0, 20);
     if (!ts.length) return json(res, 400, { error: 'pass ?t=AAPL,MSFT,…' });
     const stocks = [], errors = [];
     const queue = [...ts];
@@ -123,7 +123,7 @@ http.createServer(async (req, res) => {
         catch (e){ errors.push({ t, e: String(e.message || e).slice(0, 120) }); }
       }
     }
-    await Promise.all(Array.from({ length: 4 }, worker));
+    await Promise.all(Array.from({ length: 6 }, worker));
     return json(res, 200, { asof: Date.now(), stocks, errors });
   }
 

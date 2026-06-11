@@ -10,44 +10,56 @@ import YahooFinance from 'yahoo-finance2';
 export const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey', 'ripHistorical'] });
 
 export const TICKERS = [
-  // Mega-cap tech & semiconductors
-  'AAPL','MSFT','NVDA','GOOGL','AMZN','META','AVGO','ORCL','CRM','ADBE','AMD','INTC','QCOM','TXN','CSCO','NOW','INTU','AMAT','MU','PLTR','SNOW','CRWD','PANW','SHOP','UBER','ABNB','NFLX','PYPL',
-  'TSLA','IBM','ACN','TSM','ASML','ADI','LRCX','KLAC','NXPI','MRVL','MCHP','ON','SWKS','TER','MPWR','ARM','SMCI','DELL','HPQ','HPE','NTAP','ANET','MSI','APH','TEL','GLW','CTSH','VRSN','SNPS','CDNS','ADSK','WDAY','FTNT','TEAM',
-  // Software / internet / consumer platforms
-  'DDOG','MDB','ZS','OKTA','NET','HUBS','RBLX','DASH','LYFT','SPOT','TTD','EA','TTWO','MTCH',
-  // Fintech / brokerages / crypto-adjacent
-  'COIN','HOOD','SOFI','AFRM','MSTR',
-  // Financials
-  'BRK.B','JPM','V','MA','BAC','GS','MS','AXP','WFC',
-  'C','USB','PNC','TFC','SCHW','BLK','BX','KKR','APO','CME','ICE','NDAQ','SPGI','MCO','MSCI','COF','AIG','MET','PRU','ALL','TRV','PGR','CB',
-  'FITB','KEY','RF','HBAN','AJG','FIS',
-  // Healthcare
-  'UNH','LLY','JNJ','ABBV','MRK','PFE','TMO','ISRG','AMGN','GILD','CVS','MDT',
-  'ABT','DHR','BMY','SYK','BSX','EW','BDX','RMD','IDXX','IQV','DXCM','PODD','REGN','VRTX','BIIB','MRNA','HUM','CI','ELV','CNC','HCA','ZTS','MCK',
-  // Consumer discretionary & retail
-  'WMT','COST','PG','KO','PEP','MCD','NKE','SBUX','HD','LOW','TGT','CMG','DIS','F','GM',
-  'TJX','ROST','DG','DLTR','ULTA','LULU','DECK','RL','BBY','EBAY','CHWY','BKNG','EXPE','MAR','HLT','LVS','MGM','RCL','YUM','DPZ','ORLY',
-  // Consumer staples
-  'MDLZ','KHC','GIS','HSY','KMB','CL','CLX','TSN','ADM','KR','SYY','STZ','MO','PM','MNST',
-  // Industrials / aerospace & defense / transport
-  'XOM','CVX','COP','CAT','DE','BA','GE','LMT','UPS','UNP','LIN','SHW','FCX',
-  'HON','MMM','RTX','NOC','GD','LHX','TDG','AXON','EMR','ETN','PH','ITW','CMI','PCAR','CSX','NSC','FDX','ODFL','URI','FAST','CARR',
-  'GWW','PWR','HWM','GEV','GEHC','NUE','VMC','NEM',
-  // Chemicals & materials
-  'APD','ECL','DD','DOW','PPG','ALB',
-  // Energy
-  'SLB','HAL','BKR','OXY','EOG','FANG','MPC','PSX','VLO','KMI',
-  // Utilities
-  'NEE','DUK','SO',
-  'D','EXC','AEP','SRE','XEL','ED','WEC','PEG','VST','CEG',
-  // REITs
-  'O','PLD','AMT',
-  'SPG','EQIX','DLR','PSA','EXR','AVB','VICI','WELL','IRM','CCI',
-  // Communication / media
-  'T','VZ','TMUS',
-  'CMCSA','CHTR','WBD','FOXA','OMC','LYV',
-  // Higher-beta / speculative
-  'RIVN','SNAP'
+  'A','AA','AAL','AAON','AAPL','ABBV','ABEV','ABNB','ABT','ACGL','ACI','ACM','ACN','ADBE','ADC','ADI','ADM','ADP','ADSK','AEE',
+  'AEIS','AEP','AES','AFG','AFL','AFRM','AGCO','AHR','AIG','AIT','AIZ','AJG','AKAM','ALAB','ALB','ALGM','ALGN','ALK','ALL','ALLE',
+  'ALLY','ALV','AM','AMAT','AMCR','AMD','AME','AMG','AMGN','AMH','AMKR','AMP','AMT','AMX','AMZN','AN','ANET','ANF','AON','AOS',
+  'APA','APD','APG','APH','APO','APP','APPF','APTV','AR','ARE','ARES','ARM','ARMK','ARW','ARWR','ASB','ASH','ASML','ATI','ATO',
+  'ATR','AVAV','AVB','AVGO','AVNT','AVT','AVTR','AVY','AWK','AXON','AXP','AXTA','AYI','AZN','AZO','BA','BABA','BAC','BAH','BALL',
+  'BAX','BBVA','BBWI','BBY','BC','BCO','BCS','BDC','BDX','BEN','BF.B','BG','BHF','BHP','BIDU','BIIB','BILL','BIO','BJ','BKH',
+  'BKNG','BKR','BLD','BLDR','BLK','BLKB','BMRN','BMY','BNY','BP','BR','BRBR','BRK.B','BRKR','BRO','BROS','BRX','BSX','BSY','BTI',
+  'BURL','BWA','BWXT','BX','BXP','BYD','C','CACI','CAG','CAH','CAR','CARR','CART','CASY','CAT','CAVA','CB','CBOE','CBRE','CBSH',
+  'CBT','CCI','CCK','CCL','CDNS','CDP','CDW','CEG','CELH','CF','CFG','CFR','CG','CGNX','CHD','CHDN','CHE','CHH','CHRD','CHRW',
+  'CHTR','CHWY','CI','CIEN','CINF','CL','CLF','CLH','CLX','CMC','CMCSA','CME','CMG','CMI','CMS','CNC','CNH','CNM','CNO','CNP',
+  'CNX','CNXC','COF','COHR','COIN','COKE','COLB','COLM','COO','COP','COR','COST','COTY','CPAY','CPB','CPNG','CPRI','CPRT','CPT','CR',
+  'CRBG','CRH','CRL','CRM','CROX','CRS','CRUS','CRWD','CSCO','CSGP','CSL','CSX','CTAS','CTRE','CTSH','CTVA','CUBE','CUZ','CVLT','CVNA',
+  'CVS','CVX','CW','CXT','CYTK','D','DAL','DAR','DASH','DB','DBX','DCI','DD','DDOG','DE','DECK','DELL','DEO','DG','DGX',
+  'DHI','DHR','DINO','DIS','DKNG','DKS','DLB','DLR','DLTR','DOC','DOCN','DOCS','DOCU','DOV','DOW','DPZ','DRI','DT','DTE','DTM',
+  'DUK','DUOL','DVA','DVN','DXCM','DY','E','EA','EBAY','ECL','ED','EEFT','EFX','EG','EGP','EHC','EIX','EL','ELAN','ELF',
+  'ELS','ELV','EME','EMR','ENS','ENSG','ENTG','EOG','EPR','EQH','EQIX','EQNR','EQR','EQT','ERIC','ERIE','ES','ESAB','ESNT','ESS',
+  'ETN','ETR','EVR','EVRG','EW','EWBC','EXC','EXE','EXEL','EXLS','EXP','EXPD','EXPE','EXPO','EXR','F','FAF','FANG','FAST','FBIN',
+  'FCFS','FCN','FCX','FDS','FDX','FDXF','FE','FFIN','FFIV','FHI','FHN','FICO','FIS','FISV','FITB','FIVE','FIX','FLEX','FLG','FLR',
+  'FLS','FN','FNB','FND','FNF','FOUR','FOX','FOXA','FR','FRT','FSLR','FTI','FTNT','FTV','G','GAP','GATX','GBCI','GD','GDDY',
+  'GE','GEF','GEHC','GEN','GEV','GGG','GHC','GILD','GIS','GL','GLPI','GLW','GM','GME','GMED','GNRC','GNTX','GOOG','GOOGL','GPC',
+  'GPK','GPN','GRAB','GRMN','GS','GSK','GT','GTLB','GTLS','GWRE','GWW','GXO','H','HAE','HAL','HALO','HAS','HBAN','HCA','HD',
+  'HDB','HGV','HIG','HII','HIMS','HL','HLI','HLNE','HLT','HMC','HOG','HOMB','HON','HOOD','HPE','HPQ','HQY','HR','HRB','HRL',
+  'HSBC','HSIC','HST','HSY','HUBB','HUBS','HUM','HWC','HWM','HXL','IBKR','IBM','IBN','IBOC','ICE','IDA','IDCC','IDXX','IEX','IFF',
+  'ILMN','INCY','INFY','ING','INGR','INTC','INTU','INVH','IOT','IP','IPGP','IQV','IR','IRM','IRT','ISRG','IT','ITT','ITUB','ITW',
+  'IVZ','J','JAZZ','JBHT','JBL','JCI','JD','JEF','JHG','JKHY','JLL','JNJ','JPM','KBH','KBR','KD','KDP','KEX','KEY','KEYS',
+  'KHC','KIM','KKR','KLAC','KMB','KMI','KNF','KNSL','KNX','KO','KR','KRC','KRG','KTOS','KVUE','L','LAD','LAMR','LCID','LDOS',
+  'LEA','LECO','LEN','LFUS','LH','LHX','LI','LII','LIN','LITE','LIVN','LLY','LMT','LNT','LNTH','LOPE','LOW','LPX','LRCX','LSTR',
+  'LULU','LUV','LVS','LYB','LYFT','LYG','LYV','M','MA','MAA','MANH','MAR','MAS','MASI','MAT','MCD','MCHP','MCK','MCO','MDB',
+  'MDLZ','MDT','MEDP','MELI','MET','META','MGM','MIDD','MKC','MKSI','MLI','MLM','MMM','MMS','MNST','MO','MOG.A','MORN','MOS','MP',
+  'MPC','MPWR','MRK','MRNA','MRSH','MS','MSA','MSCI','MSFT','MSI','MSM','MSTR','MTB','MTD','MTDR','MTG','MTN','MTSI','MTZ','MU',
+  'MUFG','MUR','MUSA','MZTI','NBIX','NCLH','NDAQ','NDSN','NEE','NEM','NET','NEU','NFG','NFLX','NI','NIO','NJR','NKE','NLY','NNN',
+  'NOC','NOK','NOV','NOVT','NOW','NRG','NSA','NSC','NTAP','NTES','NTNX','NTR','NTRS','NU','NUE','NVDA','NVO','NVR','NVS','NVST',
+  'NVT','NWE','NWG','NWS','NWSA','NXPI','NXST','NXT','NYT','O','OC','ODFL','OGE','OGS','OHI','OKE','OKTA','OLED','OLLI','OLN',
+  'OMC','ON','ONB','ONON','ONTO','OPCH','ORA','ORCL','ORI','ORLY','OSK','OTIS','OVV','OXY','OZK','P','PAG','PANW','PATH','PAYX',
+  'PB','PBF','PBR','PCAR','PCG','PCTY','PDD','PEG','PEGA','PEN','PEP','PFE','PFG','PFGC','PG','PGR','PH','PHG','PHM','PII',
+  'PINS','PK','PKG','PLD','PLNT','PLTR','PM','PNC','PNFP','PNR','PNW','PODD','POOL','POR','POST','PPC','PPG','PPL','PR','PRI',
+  'PRU','PSA','PSKY','PSN','PSX','PTC','PVH','PWR','PYPL','Q','QCOM','QLYS','R','RACE','RBA','RBC','RBLX','RCL','RDDT','REG',
+  'REGN','REXR','RF','RGA','RGEN','RGLD','RH','RIO','RIVN','RJF','RL','RLI','RMBS','RMD','RNR','ROIV','ROK','ROKU','ROL','ROP',
+  'ROST','RPM','RRC','RRX','RS','RSG','RTX','RVTY','RYAN','RYN','S','SAIA','SAIC','SAM','SAN','SAP','SARO','SATS','SBAC','SBRA',
+  'SBUX','SCCO','SCHW','SCI','SE','SEIC','SF','SFM','SGI','SHC','SHEL','SHOP','SHW','SIGI','SITM','SJM','SLAB','SLB','SLGN','SLM',
+  'SMCI','SMFG','SMG','SN','SNA','SNAP','SNDK','SNOW','SNPS','SNX','SNY','SO','SOFI','SOLS','SOLV','SON','SONY','SPG','SPGI','SPOT',
+  'SPXC','SR','SRE','SSB','SSD','ST','STAG','STE','STLA','STLD','STM','STRL','STT','STWD','STX','STZ','SW','SWK','SWKS','SWX',
+  'SYF','SYK','SYNA','SYY','T','TAK','TAP','TCBI','TCOM','TDG','TDY','TEAM','TECH','TEL','TEM','TER','TEX','TFC','TGT','THC',
+  'THG','THO','TJX','TKO','TKR','TLN','TM','TMHC','TMO','TMUS','TNL','TOL','TOST','TPL','TPR','TREX','TRGP','TRMB','TROW','TRU',
+  'TRV','TSCO','TSLA','TSM','TSN','TT','TTC','TTD','TTE','TTEK','TTMI','TTWO','TWLO','TXN','TXNM','TXRH','TXT','TYL','U','UAL',
+  'UBER','UBS','UBSI','UDR','UFPI','UGI','UHS','UL','ULS','ULTA','UMBF','UNH','UNM','UNP','UPS','URI','USB','USFD','UTHR','V',
+  'VAL','VALE','VC','VEEV','VFC','VICI','VICR','VLO','VLTO','VLY','VMC','VMI','VNO','VNOM','VNT','VOYA','VRSK','VRSN','VRT','VRTX',
+  'VST','VTR','VTRS','VVV','VZ','WAB','WAL','WAT','WBD','WBS','WCC','WDAY','WDC','WEC','WELL','WEX','WFC','WFRD','WH','WHR',
+  'WING','WLK','WM','WMB','WMG','WMS','WMT','WPC','WRB','WSM','WSO','WST','WTFC','WTRG','WTS','WTW','WWD','WY','WYNN','XEL',
+  'XOM','XPEV','XPO','XRAY','XYL','XYZ','YETI','YUM','ZBH','ZBRA','ZION','ZM','ZS','ZTS'
 ];
 
 export const INDEX_SYMS = [
@@ -78,9 +90,22 @@ export async function fetchChart(sym, years){
   const ch = await yahooFinance.chart(sym, { period1, interval: '1d' });
   const quotes = (ch.quotes || []).filter(q => q.close != null);
   return {
-    closes: quotes.map(q => +q.close.toFixed(4)),
+    closes: quotes.map(q => +q.close.toFixed(q.close >= 5 ? 2 : 4)),
     dates: quotes.map(q => +new Date(q.date))
   };
+}
+
+/* Dates as day-number deltas: [day0, +d, +d, …] (days since epoch).
+   ~3 bytes per trading day instead of 14 — nearly halves the payload. */
+export function encodeDates(ms){
+  const out = new Array(ms.length);
+  let prev = 0;
+  for (let i = 0; i < ms.length; i++){
+    const day = Math.floor(ms[i] / 86400000);   // UTC calendar day of the bar
+    out[i] = i ? day - prev : day;
+    prev = day;
+  }
+  return out;
 }
 
 export async function fetchStock(t){
@@ -170,6 +195,6 @@ export async function fetchStock(t){
     ar: rec ? [(rec.strongBuy || 0) + (rec.buy || 0), rec.hold || 0, (rec.sell || 0) + (rec.strongSell || 0)] : [0, 0, 0],
     tp: num(fd.targetMeanPrice),
     d: (ap.longBusinessSummary || '').split('. ').slice(0, 2).join('. ').slice(0, 300),
-    dil, revHist, closes, dates
+    dil, revHist, closes, dd: encodeDates(dates)
   };
 }

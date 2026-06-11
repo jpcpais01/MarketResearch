@@ -9,7 +9,7 @@ npm install   # first time only
 npm start     # → http://localhost:4173
 ```
 
-On first launch the server pulls the full universe (300 companies: live quotes, fundamentals, annual income statements, analyst ratings, 2-year price history) — takes a couple of minutes, with a progress bar. After that it's cached on disk and refreshed every 6 hours (click the **● LIVE** badge to force a refresh).
+On first launch the server pulls the full universe (~1,000 companies — S&P 500 + S&P 400 MidCap + large ADRs and popular growth names: live quotes, fundamentals, annual income statements, analyst ratings, 2-year price history) — takes several minutes, with a progress bar. After that it's cached on disk and refreshed every 6 hours (click the **● LIVE** badge to force a refresh). Regenerate the ticker list anytime with `node scripts/fetch-tickers.mjs` (pulls current index constituents from Wikipedia).
 
 Chrome/Edge will offer **Install** in the address bar to run it as a standalone app.
 
@@ -24,9 +24,9 @@ npx vercel --prod
 It works out of the box because the project ships two interchangeable backends:
 
 - **Locally** → `server.mjs` builds the whole universe in one process and caches it on disk.
-- **On Vercel** → the `api/` folder becomes serverless functions. `/api/universe` returns a chunk manifest, and the browser assembles the universe from parallel `/api/batch` calls (8 tickers each, ~64s total limit per function — each chunk takes ~4s). Responses carry `s-maxage=21600`, so Vercel's CDN caches every chunk for 6 hours: after the first visitor, everyone else loads instantly and Yahoo is barely touched.
+- **On Vercel** → the `api/` folder becomes serverless functions. `/api/universe` returns a chunk manifest, and the browser assembles the universe from parallel `/api/batch` calls (16 tickers each). Responses carry `s-maxage=21600`, so Vercel's CDN caches every chunk for 6 hours: after the first visitor, everyone else loads instantly and Yahoo is barely touched.
 
-Both backends share the exact same fetch/mapping code (`api/_lib/yahoo.js`), and the frontend auto-detects which one it's talking to. Repeat visits boot instantly from a 30-minute localStorage cache.
+Both backends share the exact same fetch/mapping code (`api/_lib/yahoo.js`), and the frontend auto-detects which one it's talking to. **Progressive boot:** on the chunked path the app renders as soon as the indexes plus the first ~80 stocks arrive; the rest streams in the background and the views refresh when complete. Dates ship delta-encoded (about half the bytes), and repeat visits boot instantly from a 30-minute IndexedDB cache.
 
 **Data modes** (shown as a badge in the top bar):
 - **● LIVE** — real data from the API (local server or Vercel functions)

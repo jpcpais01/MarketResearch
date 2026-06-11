@@ -69,8 +69,8 @@ const App = {
       const s = (j.stocks || [])[0];
       if (!s || s.px == null || !s.closes || s.closes.length < 240) return false;   // engine needs ~1y of history
       SERIES_MAP && SERIES_MAP.set(s.t, s.closes);
-      DATES_MAP && DATES_MAP.set(s.t, s.dates.map(d => new Date(d)));
-      const { closes, dates, ...rest } = s;
+      DATES_MAP && DATES_MAP.set(s.t, decodeDates(s));
+      const { closes, dates, dd, ...rest } = s;
       METRICS.set(rest.t, computeOne(rest, SECTOR_PE[rest.sec]));
       return true;
     } catch { return false; }
@@ -174,7 +174,7 @@ function moverRow(m, withScore = false){
 // ============================================================
 // PRICE ACTION LAB
 // ============================================================
-const PA = { t: null, idx: 'SPX', win: 252, sort: 'pax', dir: -1, cap: 'All' };
+const PA = { t: null, idx: 'SPX', win: 252, sort: 'pax', dir: -1, cap: 'All', sec: 'All' };
 const PA_WINS = [['1M', 21], ['2M', 42], ['3M', 63], ['6M', 126], ['1Y', 252], ['2Y', 504]];
 const PA_IDX = [['SPX', 'S&P 500'], ['NDX', 'Nasdaq'], ['DJI', 'Dow']];
 const PA_CAPS = [['All', null], ['<5B', [0, 5]], ['5–20B', [5, 20]], ['20–50B', [20, 50]], ['50–200B', [50, 200]], ['>200B', [200, Infinity]]];
@@ -227,7 +227,7 @@ function renderAction(t){
     PA._board = RANKED.map(x => {
       const p = priceActionStats(x.series, idx.series, PA.win);
       return (p && p.mktDown.days >= 5 && p.mktDown.rate != null)
-        ? { t: x.s.t, n: x.s.n, mc: x.s.mc, pax: paxScore(p), gor: p.mktDown.rate, rog: p.mktUp.rateDn ?? 0, avgUp: p.avgUp, avgDn: p.avgDn, beat: p.beat, ret: p.ret }
+        ? { t: x.s.t, n: x.s.n, mc: x.s.mc, sec: x.s.sec, pax: paxScore(p), gor: p.mktDown.rate, rog: p.mktUp.rateDn ?? 0, avgUp: p.avgUp, avgDn: p.avgDn, beat: p.beat, ret: p.ret }
         : null;
     }).filter(Boolean);
     PA._boardKey = boardKey;
@@ -245,8 +245,9 @@ function renderAction(t){
   const myPct = myPax != null && paxVals.length ? Math.round(paxVals.filter(v => v <= myPax).length / paxVals.length * 100) : null;
   const capRange = (PA_CAPS.find(c => c[0] === PA.cap) || PA_CAPS[0])[1];
   const sortCol = PA_COLS.find(c => c.k === PA.sort) || PA_COLS[2];
+  const paSectors = ['All', ...new Set(board.map(r => r.sec).filter(Boolean))].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b));
   const sorted = board
-    .filter(r => !capRange || (r.mc != null && r.mc >= capRange[0] && r.mc < capRange[1]))
+    .filter(r => (!capRange || (r.mc != null && r.mc >= capRange[0] && r.mc < capRange[1])) && (PA.sec === 'All' || r.sec === PA.sec))
     .sort((a, b) => (sortCol.get(a) > sortCol.get(b) ? 1 : -1) * PA.dir);
 
   view().innerHTML = `
@@ -354,7 +355,10 @@ function renderAction(t){
     <div class="card-title">Down-day champions — whole universe, this window
       <span class="muted small">${sorted.length}${capRange ? ' of ' + board.length : ''} stocks vs ${idx.name} · ${outliers} outliers ★ (|z| ≥ 2σ on PA Score) · ${PA.t} ranks #${gorRank || '—'} on down-day wins · click any column to sort</span>
     </div>
-    <div class="chips mb" id="paCap">${PA_CAPS.map(([l]) => `<span class="chip ${PA.cap === l ? 'active' : ''}" data-c="${l}">${l === 'All' ? 'All caps' : l}</span>`).join('')}</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div class="chips" id="paCap">${PA_CAPS.map(([l]) => `<span class="chip ${PA.cap === l ? 'active' : ''}" data-c="${l}">${l === 'All' ? 'All caps' : l}</span>`).join('')}</div>
+      <select id="paSec" style="height:32px;padding:0 10px;border-radius:8px;background:var(--glass);border:1px solid var(--border);color:var(--text);font-size:13px;cursor:pointer">${paSectors.map(s => `<option value="${s}" ${PA.sec === s ? 'selected' : ''}>${s === 'All' ? 'All sectors' : s}</option>`).join('')}</select>
+    </div>
     <div class="tbl-wrap" style="max-height:64vh" id="paBoard">
       <table class="tbl">
         <thead><tr><th>#</th>${PA_COLS.map(c => `<th data-k="${c.k}" class="${PA.sort === c.k ? 'sorted' : ''}" style="cursor:pointer">${c.l}${PA.sort === c.k ? (PA.dir < 0 ? ' ↓' : ' ↑') : ''}</th>`).join('')}</tr></thead>
@@ -401,6 +405,7 @@ function renderAction(t){
   $('#paIdx').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; PA.idx = c.dataset.i; renderAction(); };
   $('#paWin').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; PA.win = +c.dataset.w; renderAction(); };
   $('#paCap').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; PA.cap = c.dataset.c; renderAction(); };
+  $('#paSec').onchange = e => { PA.sec = e.target.value; renderAction(); };
   $('#paBoard thead').onclick = e => {
     const th = e.target.closest('th'); if (!th || !th.dataset.k) return;
     e.stopPropagation();
@@ -1237,12 +1242,26 @@ window.addEventListener('resize', () => { clearTimeout(rsTimer); rsTimer = setTi
 // ============================================================
 // BOOT — wait for live data (or fallback), then compute & render
 // ============================================================
-function bootApp(){
+function recomputeAllDerived(){
   SECTORS = [...new Set(STOCKS.map(s => s.sec))].sort();
   METRICS = computeAll();
   MARKET = computeMarket(METRICS);
   INSIGHTS = buildInsights(METRICS);
   RANKED = [...METRICS.values()].sort((a, b) => b.score - a.score);
+}
+
+// the chunked loader streams the rest of the universe after first paint —
+// fold it in and refresh whatever view is open
+document.addEventListener('em:universe', e => {
+  if (!METRICS) return;            // boot hasn't run yet — bootApp will handle it
+  recomputeAllDerived();
+  drawMarketPill();
+  render();
+  toast(`Full universe loaded — ${STOCKS.length} stocks scored`);
+});
+
+function bootApp(){
+  recomputeAllDerived();
   if (DATA_MODE === 'demo'){
     // demo data can't fetch arbitrary tickers — hide entries we can't show
     WATCH = WATCH.filter(t => METRICS.has(t));
@@ -1259,22 +1278,25 @@ function bootApp(){
     $('#globalSearch').value = ''; App.go('stock/' + t);
   });
 
-  const asof = DATA_ASOF ? new Date(DATA_ASOF).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
-  const badge = DATA_MODE === 'live'
-    ? `<span class="data-badge live" title="Real market data via Yahoo Finance · as of ${asof} · click to force refresh" onclick="App.refreshData()">● LIVE</span>`
-    : DATA_MODE === 'cached'
-      ? `<span class="data-badge cached" title="Offline — last saved real data from ${asof}">● CACHED</span>`
-      : `<span class="data-badge demo" title="Live data unreachable — start the Node server (npm start) for real data">● DEMO</span>`;
-  $('#marketPill').innerHTML = MARKET.idx.map(ix =>
-    `<span><b>${ix.t}</b> <span class="${ix.chg >= 0 ? 'up' : 'down'}">${ix.chg >= 0 ? '+' : ''}${ix.chg.toFixed(2)}%</span></span>`).join('') + badge;
+  drawMarketPill();
 
   const boot = document.getElementById('boot');
   if (boot){ boot.style.opacity = '0'; setTimeout(() => boot.remove(), 450); }
   render();
 }
+function drawMarketPill(){
+  const asof = DATA_ASOF ? new Date(DATA_ASOF).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  const badge = DATA_MODE === 'live'
+    ? `<span class="data-badge live" title="Real market data via Yahoo Finance · ${STOCKS.length} stocks · as of ${asof} · click to force refresh" onclick="App.refreshData()">● LIVE</span>`
+    : DATA_MODE === 'cached'
+      ? `<span class="data-badge cached" title="Offline — last saved real data from ${asof}">● CACHED</span>`
+      : `<span class="data-badge demo" title="Live data unreachable — start the Node server (npm start) for real data">● DEMO</span>`;
+  $('#marketPill').innerHTML = MARKET.idx.map(ix =>
+    `<span><b>${ix.t}</b> <span class="${ix.chg >= 0 ? 'up' : 'down'}">${ix.chg >= 0 ? '+' : ''}${ix.chg.toFixed(2)}%</span></span>`).join('') + badge;
+}
 App.refreshData = async () => {
   toast('Refreshing market data…');
-  localStorage.removeItem('em_universe');   // drop the fast-boot cache
+  await emClearCache();   // drop the fast-boot cache
   try { await fetch('/api/universe?refresh=1'); } catch { /* serverless ignores this */ }
   setTimeout(() => location.reload(), 600);
 };

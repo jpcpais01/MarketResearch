@@ -1,5 +1,5 @@
 /* Vercel serverless: universe manifest.
-   Serverless functions can't build all ~90 tickers in one invocation,
+   Serverless functions can't build ~1000 tickers in one invocation,
    so this returns a manifest telling the client to fetch in chunks
    via /api/batch. The local Node server (server.mjs) returns the full
    payload instead — js/live.js handles both shapes. */
@@ -10,7 +10,7 @@ export default function handler(req, res){
   res.status(200).json({
     mode: 'chunked',
     tickers: TICKERS,
-    chunkSize: 8,
+    chunkSize: 16,
     indexes: INDEX_SYMS.map(ix => ({ t: ix.t, n: ix.n }))
   });
 }

@@ -391,22 +391,34 @@ function priceActionStats(series, mkt, days, dates){
 }
 
 /* Composite price-action score ("PA Score") for one priceActionStats result.
-   Combines all four market-day quadrants and relative magnitudes:
-   · winEdge — balanced win rate: average of P(up | index down) and
-     P(up | index up), minus the 50% coin-flip. Averaging across both tape
-     directions removes the index's own drift from the count.
-   · magEdge — avg up-day return ÷ the index's avg up day, MINUS avg down-day
-     return ÷ the index's avg down day. A pure beta-β stock scores ~0 (both
-     ratios ≈ β cancel); positive means it punches harder than it bleeds.
-   0 ≈ indistinguishable from the tape; |score| grows with independence.
-   Cross-sectional z-scores on the page flag the outliers. */
+   Built to find ACCUMULATION — stocks that keep getting bought on both good
+   and bad index days — not stocks that merely spiked.
+
+   PRIMARY · winEdge (frequencies, all four quadrants):
+     gor = P(stock up | index down), pUp = P(stock up | index up).
+     0.6 × (their average − 50)  +  0.4 × (the WEAKER of the two − 50).
+     The min-term demands strength on BOTH kinds of day: a momentum name
+     that only rises when the tape rises — or a bunker that only holds in
+     sell-offs — can't score high. (avg − 50 is algebraically the user's
+     core ask: up-days-on-index-down minus down-days-on-index-up, halved.)
+
+   SECONDARY · magEdge (bounded, at most ±8 points):
+     Day-matched outperformance: (stock avg − index avg) on index-up days,
+     plus the same on index-down days, averaged, clamped to ±1pp/day, ×8.
+     Differences instead of ratios — the old ratio form divided by the
+     index's tiny average day and exploded in short/calm windows, letting
+     one speculative spike dominate the whole score.
+
+   0 ≈ indistinguishable from the tape. Cross-sectional z-scores on the
+   page flag the outliers. */
 function paxScore(p){
   if (!p || p.mktDown.rate == null || p.mktUp.rateDn == null) return null;
-  const winEdge = (p.mktDown.rate + (100 - p.mktUp.rateDn)) / 2 - 50;
-  const upRatio = (p.avgUp != null && p.mktUp.avgMkt) ? p.avgUp / p.mktUp.avgMkt : null;
-  const dnRatio = (p.avgDn != null && p.mktDown.avgMkt) ? p.avgDn / p.mktDown.avgMkt : null;
-  const magEdge = (upRatio != null && dnRatio != null) ? upRatio - dnRatio : 0;
-  return winEdge + 25 * magEdge;
+  const gor = p.mktDown.rate, pUp = 100 - p.mktUp.rateDn;
+  const winEdge = 0.6 * ((gor + pUp) / 2 - 50) + 0.4 * (Math.min(gor, pUp) - 50);
+  const aUp = (p.mktUp.avgStock != null && p.mktUp.avgMkt != null) ? p.mktUp.avgStock - p.mktUp.avgMkt : 0;
+  const aDn = (p.mktDown.avgStock != null && p.mktDown.avgMkt != null) ? p.mktDown.avgStock - p.mktDown.avgMkt : 0;
+  const magEdge = clamp((aUp + aDn) / 2, -1, 1) * 8;
+  return winEdge + magEdge;
 }
 
 let EDGE_STATS = null;   // sorted per-metric arrays → cross-sectional percentile ranks

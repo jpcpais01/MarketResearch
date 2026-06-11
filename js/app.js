@@ -278,7 +278,7 @@ function renderAction(t){
       <div>Days beating the index<b class="num">${pa.beat.toFixed(0)}%</b></div>
       <div>Alpha over window<b style="color:${alpha >= 0 ? '#34d399' : '#f87171'}">${alpha >= 0 ? '+' : ''}${alpha.toFixed(1)}%</b></div>
     </div>
-    <div class="muted-block" style="margin-top:12px;font-size:13px">⌖ <b>PA Score (this window): ${myPax == null ? '—' : (myPax >= 0 ? '+' : '') + myPax.toFixed(1)}</b>${myPct != null ? ` — ${myPct}th percentile of the universe` : ''}${myZ != null && Math.abs(myZ) >= 2 ? ` · <b style="color:${myZ > 0 ? '#34d399' : '#f87171'}">${myZ > 0 ? 'positive' : 'negative'} outlier ★ (${myZ.toFixed(1)}σ)</b>` : ''}. One number for the whole grid below: balanced win rate across up and down tapes, plus how hard it punches on up days vs how much it bleeds on down days (each relative to the index's own typical move, so beta cancels). 0 ≈ moves with the market.</div>
+    <div class="muted-block" style="margin-top:12px;font-size:13px">⌖ <b>PA Score (this window): ${myPax == null ? '—' : (myPax >= 0 ? '+' : '') + myPax.toFixed(1)}</b>${myPct != null ? ` — ${myPct}th percentile of the universe` : ''}${myZ != null && Math.abs(myZ) >= 2 ? ` · <b style="color:${myZ > 0 ? '#34d399' : '#f87171'}">${myZ > 0 ? 'positive' : 'negative'} outlier ★ (${myZ.toFixed(1)}σ)</b>` : ''}. Frequencies first: the win rate on index-down days and on index-up days, with extra weight on the <b>weaker</b> side — it takes accumulation on both kinds of day to score high, so one-sided momentum spikes can't fake it. Day-matched outperformance adds at most ±8 on top. 0 ≈ moves with the market.</div>
     <div class="muted-block" style="margin-top:8px">⇅ <b>Price Action signal (1Y): ${pasSig.v == null ? '—' : Math.round(pasSig.v) + '/100'}</b> — ${pasSig.read}</div>
   </div>
 
@@ -374,7 +374,7 @@ function renderAction(t){
         </tbody>
       </table>
     </div>
-    <div class="muted small" style="margin-top:8px"><b>PA Score</b> = balanced win rate across both tape directions + relative punch-vs-bleed (beta cancels; 0 ≈ moves with the market; ★ = statistical outlier, |z| ≥ 2σ) · "Up on index-down days" = share of ${idx.name} down days the stock still closed green · "Down on index-up days" = share of its up days the stock missed · click any row to inspect that stock.</div>
+    <div class="muted small" style="margin-top:8px"><b>PA Score</b> = win-rate edge across both tape directions with the weaker side weighted extra (accumulation must show on good AND bad days) + day-matched outperformance capped at ±8 (0 ≈ moves with the market; ★ = statistical outlier, |z| ≥ 2σ) · "Up on index-down days" = share of ${idx.name} down days the stock still closed green · "Down on index-up days" = share of its up days the stock missed · click any row to inspect that stock.</div>
   </div>`;
 
   // wire controls — stock picker uses the app's own styled dropdown, not the native datalist

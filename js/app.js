@@ -357,7 +357,7 @@ function renderAction(t){
     </div>
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       <div class="chips" id="paCap">${PA_CAPS.map(([l]) => `<span class="chip ${PA.cap === l ? 'active' : ''}" data-c="${l}">${l === 'All' ? 'All caps' : l}</span>`).join('')}</div>
-      <select id="paSec" style="height:32px;padding:0 10px;border-radius:8px;background:var(--glass);border:1px solid var(--border);color:var(--text);font-size:13px;cursor:pointer">${paSectors.map(s => `<option value="${s}" ${PA.sec === s ? 'selected' : ''}>${s === 'All' ? 'All sectors' : s}</option>`).join('')}</select>
+      <select id="paSec">${paSectors.map(s => `<option value="${s}" ${PA.sec === s ? 'selected' : ''}>${s === 'All' ? 'All sectors' : s}</option>`).join('')}</select>
     </div>
     <div class="tbl-wrap" style="max-height:64vh" id="paBoard">
       <table class="tbl">

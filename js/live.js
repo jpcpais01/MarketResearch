@@ -44,6 +44,12 @@ function setBoot(msg, frac){
   if (el) el.textContent = msg;
   const bar = document.getElementById('bootBar');
   if (bar && frac != null) bar.style.width = Math.round(frac * 100) + '%';
+  // thin header progress bar — visible after boot screen fades, shows background-load progress
+  const hb = document.getElementById('headerLoadBar');
+  if (hb && frac != null){
+    hb.style.transform = `scaleX(${frac})`;
+    hb.classList.toggle('active', frac > 0 && frac < 1);
+  }
 }
 
 /* ---- date decoding (delta day-numbers → Date[]; ms arrays pass through) ---- */

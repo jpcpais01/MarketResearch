@@ -613,12 +613,14 @@ function renderStock(t){
   const watched = WATCH.includes(t);
   const peers = RANKED.filter(x => x.s.sec === s.sec && x.s.t !== t).slice(0, 5);
   const d = m.dcfP;
+  const p6 = pax6(t);
+  const p6Color = p6 == null ? 'var(--muted)' : p6 > 3 ? '#34d399' : p6 < -3 ? '#f87171' : 'var(--text)';
 
   view().innerHTML = `
   <div class="stock-head">
     <div class="id">
       <h1>${s.n} <span class="muted" style="font-weight:600;font-size:17px">${s.t}</span> ${ratingTag(m)}</h1>
-      <div class="sub"><span class="sector-chip">${s.sec}</span><span>${s.ind}</span><span>·</span><span>${F.big(s.mc)} market cap</span></div>
+      <div class="sub"><span class="sector-chip">${s.sec}</span><span>${s.ind}</span><span>·</span><span>${F.big(s.mc)} market cap</span><span class="sector-chip" style="cursor:pointer;color:${p6Color};border-color:${p6 != null && Math.abs(p6) > 3 ? p6Color + '55' : 'rgba(94,234,212,.22)'}" onclick="App.go('action/${t}')" title="Composite price-action score, 6-month window vs the S&P 500 — win-rate edge on index-up AND index-down days. 0 ≈ moves with the market. Click for the full Price Action Lab.">⇅ PA 6M ${p6 != null ? (p6 >= 0 ? '+' : '') + p6.toFixed(1) : '—'}</span></div>
     </div>
     <div class="px">
       <div class="p num">${F.money(s.px)}</div>
@@ -629,7 +631,13 @@ function renderStock(t){
       <button class="btn small" onclick="App.addCompare('${t}')">⇄ Compare</button>
       <button class="btn small" onclick="App.go('action/${t}')">⇅ Price action</button>
       <button class="btn small" onclick="App.go('portfolio?add=${t}')">◔ Add to portfolio</button>
+      <span class="muted small" style="margin-left:auto" id="stDesc">${escHTML(s.d || '')} <span class="more" id="descMore">read more</span></span>
     </div>
+  </div>
+
+  <div class="card mb tight" id="descPanel" style="display:none">
+    <div class="card-title">About ${s.n} <span class="more" id="descClose">close</span></div>
+    <p class="muted" id="descFull" style="line-height:1.7;margin:0;font-size:13.5px">Loading…</p>
   </div>
 
   <div class="card mb">
@@ -754,15 +762,9 @@ function renderStock(t){
     </div>
   </div>
 
-  <div class="grid g2 mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
-    <div class="card" style="margin:0">
-      <div class="card-title">About ${s.n}</div>
-      <p class="muted" id="stDesc" style="line-height:1.7;margin:0;font-size:13.5px">${s.d ? escHTML(s.d) : 'Loading description…'} <span class="more" id="descMore" style="white-space:nowrap">read more</span></p>
-    </div>
-    <div class="card" style="margin:0">
-      <div class="card-title">Latest news</div>
-      <div id="stNews" style="max-height:320px;overflow:auto"><div class="muted small">Loading news…</div></div>
-    </div>
+  <div class="card mb">
+    <div class="card-title">Latest news — ${s.t}</div>
+    <div id="stNews" style="max-height:360px;overflow:auto"><div class="muted small">Loading news…</div></div>
   </div>
 
   <div class="card">
@@ -794,26 +796,21 @@ function renderStock(t){
           <div class="nm muted small">${escHTML(n.pub || '')}${n.at ? ' · ' + timeAgo(n.at) : ''}</div>
         </a>`).join('') : '<div class="muted small">No recent headlines found for this symbol.</div>';
     }
-    // if the universe payload had no (or a truncated) description, upgrade silently
+    // if the universe payload had no description, fill the short one silently
     const p = $('#stDesc');
     if (p && j && j.desc && !s.d) p.firstChild.textContent = j.desc.split('. ').slice(0, 2).join('. ').slice(0, 300) + ' ';
   });
-  const wireDescToggle = () => {
-    const more = $('#descMore'); if (!more) return;
-    more.onclick = async () => {
-      const p = $('#stDesc'); if (!p) return;
-      more.textContent = '…';
-      const j = await newsP;
-      const full = (j && j.desc) || s.d;
-      if (!full){ more.textContent = 'full description unavailable'; return; }
-      p.innerHTML = `${escHTML(full)} <span class="more" id="descMore" style="white-space:nowrap">show less</span>`;
-      $('#descMore').onclick = () => {
-        p.innerHTML = `${escHTML(s.d || full.split('. ').slice(0, 2).join('. ').slice(0, 300))} <span class="more" id="descMore" style="white-space:nowrap">read more</span>`;
-        wireDescToggle();
-      };
-    };
+  // "read more" drops a full-description panel right under the header
+  const moreBtn = $('#descMore'), descPanel = $('#descPanel');
+  const closeDesc = () => { descPanel.style.display = 'none'; moreBtn.textContent = 'read more'; };
+  if (moreBtn) moreBtn.onclick = async () => {
+    if (descPanel.style.display !== 'none') return closeDesc();
+    descPanel.style.display = '';
+    moreBtn.textContent = 'show less';
+    const j = await newsP;
+    $('#descFull').textContent = (j && j.desc) || s.d || 'Full description unavailable.';
   };
-  wireDescToggle();
+  $('#descClose').onclick = closeDesc;
 
   // growth bars
   const yr = new Date().getFullYear();
